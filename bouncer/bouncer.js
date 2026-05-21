@@ -1,0 +1,525 @@
+// bouncer.js — v8ui canvas for the Bouncer M4L device
+// Milestones 1–2: source + hand-drawn walls + bouncing particles + hit events.
+
+autowatch = 1;
+inlets = 1;
+outlets = 1;
+
+post("bouncer.js: starting load\n");
+
+mgraphics.init();
+mgraphics.relative_coords = 0;
+mgraphics.autofill = 0;
+
+// ---------- state ----------
+var source = { x: 100, y: 74 };
+var walls = [];               // [{id, points:[{x,y},...], color}]
+var nextWallId = 1;
+
+var particles = [];           // [{id, emitTime, path:[{from,to,t0,t1}], events, alive}]
+var nextParticleId = 1;
+
+var rateMs = 120;
+var speedPxPerSec = 240;
+var maxBounces = 8;
+var drawMode = 0;
+
+var emitAngleDeg = 0;     // direction the emitter is pointing (0 = right, 90 = down)
+var sweepDeg = 360;       // emission cone width; 360 = omnidirectional
+var sourceMode = 0;       // 0 = random auto-emission, 1 = MIDI-triggered, 2 = audio (future)
+
+var currentDraw = null;
+var selectedWall = -1;
+var draggingSource = false;
+var lastEmit = 0;
+
+// ---------- tick (bang from patcher metro) ----------
+function bang() {
+  tick();
+}
+
+function tick() {
+  var now = nowMs();
+
+  // Rescue source if it ended up outside the visible canvas (e.g. older
+  // presets stored at y=200 when the canvas was taller). User can drag
+  // it from wherever it lands.
+  var W = box.rect[2] - box.rect[0];
+  var H = box.rect[3] - box.rect[1];
+  if (W > 0 && H > 0) {
+    var changed = false;
+    if (source.x < 8 || source.x > W - 8) { source.x = Math.max(8, Math.min(W - 8, source.x)); changed = true; }
+    if (source.y < 8 || source.y > H - 8) { source.y = Math.max(8, Math.min(H - 8, source.y)); changed = true; }
+    if (changed) dumpGeometry();
+  }
+
+  // Only auto-emit in random mode; MIDI / audio modes fire on demand.
+  if (!drawMode && sourceMode === 0 && (now - lastEmit) >= rateMs) {
+    emitParticle(now);
+    lastEmit = now;
+  }
+
+  for (var i = 0; i < particles.length; i++) {
+    var p = particles[i];
+    var elapsed = now - p.emitTime;
+    var seg = null;
+    for (var s = 0; s < p.path.length; s++) {
+      if (elapsed <= p.path[s].t1 || !isFinite(p.path[s].t1)) {
+        seg = p.path[s];
+        break;
+      }
+    }
+    if (!seg) { p.alive = false; continue; }
+    var t = isFinite(seg.t1)
+      ? (elapsed - seg.t0) / Math.max(1, seg.t1 - seg.t0)
+      : Math.min(1, (elapsed - seg.t0) / 2000);
+    p.x = seg.from.x + (seg.to.x - seg.from.x) * t;
+    p.y = seg.from.y + (seg.to.y - seg.from.y) * t;
+
+    var W = box.rect[2] - box.rect[0];
+    var H = box.rect[3] - box.rect[1];
+    if (p.x < -20 || p.y < -20 || p.x > W + 20 || p.y > H + 20) p.alive = false;
+  }
+
+  var alive = [];
+  for (var i = 0; i < particles.length; i++) if (particles[i].alive) alive.push(particles[i]);
+  particles = alive;
+
+  mgraphics.redraw();
+}
+
+function nowMs() {
+  try { return Date.now(); } catch (e) { return 0; }
+}
+
+// ---------- emission ----------
+function emitParticle(now) {
+  var sweepRad = (sweepDeg / 360) * Math.PI * 2;
+  var centerRad = emitAngleDeg * Math.PI / 180;
+  var ang = centerRad + (Math.random() - 0.5) * sweepRad;
+  var v = { x: Math.cos(ang), y: Math.sin(ang) };
+  var path = computePath(source, v, walls, maxBounces, speedPxPerSec / 1000);
+
+  var pid = nextParticleId++;
+  particles.push({
+    id: pid,
+    emitTime: now,
+    path: path.segments,
+    events: path.events,
+    x: source.x, y: source.y,
+    alive: true
+  });
+
+  for (var i = 0; i < path.events.length; i++) {
+    var e = path.events[i];
+    outlet(0, "hit", pid, e.wallId, Math.round(e.delayMs),
+           e.x, e.y, e.nx, e.ny, e.bounce);
+  }
+  outlet(0, "particle", pid, path.events.length);
+}
+
+// ---------- geometry ----------
+function reflect(v, n) {
+  var d = v.x * n.x + v.y * n.y;
+  return { x: v.x - 2 * d * n.x, y: v.y - 2 * d * n.y };
+}
+
+function raySegmentIntersect(p, v, a, b) {
+  var sx = b.x - a.x, sy = b.y - a.y;
+  var denom = v.x * (-sy) - v.y * (-sx);
+  if (Math.abs(denom) < 1e-9) return null;
+  var dx = a.x - p.x, dy = a.y - p.y;
+  var t = (dx * (-sy) - dy * (-sx)) / denom;
+  var s = (v.x * dy - v.y * dx) / denom;
+  if (t <= 1e-4 || s < 0 || s > 1) return null;
+  var len = Math.sqrt(sx * sx + sy * sy);
+  var n = { x: -sy / len, y: sx / len };
+  if (n.x * v.x + n.y * v.y > 0) { n.x = -n.x; n.y = -n.y; }
+  return { point: { x: p.x + v.x * t, y: p.y + v.y * t }, normal: n, dist: t };
+}
+
+function findNearestHit(p, v) {
+  var nearest = null, nd = Infinity;
+  for (var w = 0; w < walls.length; w++) {
+    var wl = walls[w];
+    for (var s = 0; s + 1 < wl.points.length; s++) {
+      var hit = raySegmentIntersect(p, v, wl.points[s], wl.points[s + 1]);
+      if (hit && hit.dist < nd) {
+        nd = hit.dist;
+        nearest = { point: hit.point, normal: hit.normal, dist: hit.dist,
+                    wallId: wl.id, segIndex: s };
+      }
+    }
+  }
+  return nearest;
+}
+
+function computePath(srcPt, vel, wls, maxB, speedPxPerMs) {
+  var p = { x: srcPt.x, y: srcPt.y };
+  var v = { x: vel.x, y: vel.y };
+  var t = 0;
+  var segments = [];
+  var events = [];
+
+  for (var b = 0; b < maxB; b++) {
+    var hit = findNearestHit(p, v);
+    if (!hit) {
+      var W = box.rect[2] - box.rect[0];
+      var H = box.rect[3] - box.rect[1];
+      var far = Math.max(W, H) * 2;
+      var to = { x: p.x + v.x * far, y: p.y + v.y * far };
+      var dt = far / speedPxPerMs;
+      segments.push({ from: { x: p.x, y: p.y }, to: to, t0: t, t1: t + dt });
+      return { segments: segments, events: events };
+    }
+    var dt = hit.dist / speedPxPerMs;
+    var hitTime = t + dt;
+    segments.push({ from: { x: p.x, y: p.y }, to: hit.point, t0: t, t1: hitTime });
+    events.push({
+      wallId: hit.wallId, hitTimeMs: hitTime, delayMs: hitTime,
+      x: hit.point.x, y: hit.point.y, nx: hit.normal.x, ny: hit.normal.y, bounce: b
+    });
+    v = reflect(v, hit.normal);
+    p = { x: hit.point.x + v.x * 0.05, y: hit.point.y + v.y * 0.05 };
+    t = hitTime;
+  }
+  var W = box.rect[2] - box.rect[0];
+  var H = box.rect[3] - box.rect[1];
+  var far = Math.max(W, H) * 2;
+  var to = { x: p.x + v.x * far, y: p.y + v.y * far };
+  var dt = far / speedPxPerMs;
+  segments.push({ from: { x: p.x, y: p.y }, to: to, t0: t, t1: t + dt });
+  return { segments: segments, events: events };
+}
+
+// ---------- paint ----------
+function paint() {
+  var W = box.rect[2] - box.rect[0];
+  var H = box.rect[3] - box.rect[1];
+  var mg = mgraphics;
+  var now = nowMs();
+
+  // Background — deep blue-black gradient feel via two flat passes
+  mg.set_source_rgba(0.035, 0.052, 0.085, 1);
+  mg.rectangle(0, 0, W, H);
+  mg.fill();
+  mg.set_source_rgba(0.06, 0.09, 0.14, 0.9);
+  mg.rectangle(6, 6, W - 12, H - 12);
+  mg.fill();
+
+  // Subtle dot grid
+  mg.set_source_rgba(0.4, 0.65, 0.95, 0.18);
+  var step = 32;
+  for (var gx = step; gx < W; gx += step) {
+    for (var gy = step; gy < H; gy += step) {
+      mg.ellipse(gx - 0.7, gy - 0.7, 1.4, 1.4);
+      mg.fill();
+    }
+  }
+
+  // Walls — double-stroke for soft glow effect
+  for (var i = 0; i < walls.length; i++) {
+    var wl = walls[i];
+    var isSel = (i === selectedWall);
+
+    // Outer glow stroke
+    if (isSel) mg.set_source_rgba(1, 0.85, 0.3, 0.18);
+    else       mg.set_source_rgba(0.45, 0.78, 1, 0.18);
+    mg.set_line_width(7);
+    for (var j = 0; j + 1 < wl.points.length; j++) {
+      mg.move_to(wl.points[j].x, wl.points[j].y);
+      mg.line_to(wl.points[j + 1].x, wl.points[j + 1].y);
+    }
+    mg.stroke();
+
+    // Inner solid stroke
+    if (isSel) { mg.set_source_rgba(1, 0.88, 0.35, 1); mg.set_line_width(3); }
+    else       { mg.set_source_rgba(0.62, 0.86, 1, 0.95); mg.set_line_width(2); }
+    for (var jb = 0; jb + 1 < wl.points.length; jb++) {
+      mg.move_to(wl.points[jb].x, wl.points[jb].y);
+      mg.line_to(wl.points[jb + 1].x, wl.points[jb + 1].y);
+    }
+    mg.stroke();
+
+    // Endpoint handles when selected
+    if (isSel) {
+      mg.set_source_rgba(1, 0.88, 0.35, 1);
+      for (var jj = 0; jj < wl.points.length; jj++) {
+        mg.ellipse(wl.points[jj].x - 3, wl.points[jj].y - 3, 6, 6);
+        mg.fill();
+      }
+    }
+  }
+
+  // In-progress draw
+  if (currentDraw && currentDraw.points.length > 1) {
+    mg.set_source_rgba(1, 0.95, 0.45, 0.9);
+    mg.set_line_width(2);
+    for (var k = 0; k + 1 < currentDraw.points.length; k++) {
+      mg.move_to(currentDraw.points[k].x, currentDraw.points[k].y);
+      mg.line_to(currentDraw.points[k + 1].x, currentDraw.points[k + 1].y);
+    }
+    mg.stroke();
+  }
+
+  // Particles with faint outer glow
+  for (var pi = 0; pi < particles.length; pi++) {
+    var p = particles[pi];
+    mg.set_source_rgba(1, 1, 1, 0.18);
+    mg.ellipse(p.x - 4, p.y - 4, 8, 8);
+    mg.fill();
+    mg.set_source_rgba(1, 1, 1, 0.98);
+    mg.ellipse(p.x - 2, p.y - 2, 4, 4);
+    mg.fill();
+  }
+
+  // Emission cone — drawn behind the source so the source ring sits on top
+  var dirRad = emitAngleDeg * Math.PI / 180;
+  var halfSweep = (sweepDeg / 360) * Math.PI;   // half of total sweep, in radians
+  if (sweepDeg < 360) {
+    mg.set_source_rgba(1, 0.65, 0.35, 0.13);
+    mg.move_to(source.x, source.y);
+    mg.arc(source.x, source.y, 26, dirRad - halfSweep, dirRad + halfSweep);
+    mg.line_to(source.x, source.y);
+    mg.fill();
+    // Cone edge lines
+    mg.set_source_rgba(1, 0.7, 0.4, 0.35);
+    mg.set_line_width(1);
+    mg.move_to(source.x, source.y);
+    mg.line_to(source.x + Math.cos(dirRad - halfSweep) * 26, source.y + Math.sin(dirRad - halfSweep) * 26);
+    mg.move_to(source.x, source.y);
+    mg.line_to(source.x + Math.cos(dirRad + halfSweep) * 26, source.y + Math.sin(dirRad + halfSweep) * 26);
+    mg.stroke();
+  }
+  // Direction tick (always shown so user can see where they're aiming)
+  mg.set_source_rgba(1, 0.75, 0.4, 0.9);
+  mg.set_line_width(2);
+  mg.move_to(source.x + Math.cos(dirRad) * 10, source.y + Math.sin(dirRad) * 10);
+  mg.line_to(source.x + Math.cos(dirRad) * 22, source.y + Math.sin(dirRad) * 22);
+  mg.stroke();
+
+  // Source — pulsing ring + core
+  var pulse = 0.5 + 0.5 * Math.sin(now * 0.005);
+  var ringR = 11 + 5 * pulse;
+  mg.set_source_rgba(1, 0.35, 0.4, 0.22 + 0.18 * pulse);
+  mg.set_line_width(2);
+  mg.ellipse(source.x - ringR, source.y - ringR, 2 * ringR, 2 * ringR);
+  mg.stroke();
+  mg.set_source_rgba(1, 0.45, 0.5, 0.4);
+  mg.ellipse(source.x - 8, source.y - 8, 16, 16);
+  mg.fill();
+  mg.set_source_rgba(1, 0.25, 0.32, 1);
+  mg.ellipse(source.x - 4, source.y - 4, 8, 8);
+  mg.fill();
+
+  // HUD badge — top-left, semi-transparent backing.
+  // Color and label reflect both edit/play state and the active source.
+  var srcLabels = ["RND", "MIDI", "AUD"];
+  var srcLabel = srcLabels[sourceMode] || "?";
+  var badgeText = drawMode ? "DRAW" : ("PLAY • " + srcLabel);
+  var badgeColor = drawMode
+    ? [1, 0.85, 0.35]
+    : (sourceMode === 1 ? [1, 0.5, 0.7] : (sourceMode === 2 ? [0.55, 0.7, 1] : [0.55, 0.95, 0.85]));
+  mg.set_source_rgba(0, 0, 0, 0.55);
+  mg.rectangle(8, 8, 90, 18);
+  mg.fill();
+  mg.set_source_rgba(badgeColor[0], badgeColor[1], badgeColor[2], 0.9);
+  mg.ellipse(13, 13, 8, 8);
+  mg.fill();
+  mg.set_source_rgba(1, 1, 1, 0.85);
+  mg.select_font_face("Arial Bold");
+  mg.set_font_size(10);
+  mg.move_to(28, 21);
+  mg.show_text(badgeText);
+
+  // HUD info — bottom-left, particle + wall counts
+  mg.set_source_rgba(1, 1, 1, 0.4);
+  mg.select_font_face("Arial");
+  mg.set_font_size(9);
+  mg.move_to(10, H - 8);
+  mg.show_text(walls.length + " walls   " + particles.length + " particles");
+}
+
+// ---------- mouse ----------
+function onclick(x, y, button, mod1, shift, capslock, option, ctrl) {
+  if (drawMode) {
+    currentDraw = { points: [{ x: x, y: y }] };
+    return;
+  }
+  var dx = x - source.x, dy = y - source.y;
+  if (dx * dx + dy * dy <= 14 * 14) { draggingSource = true; return; }
+  var hit = findNearestWallIndex(x, y, 8);
+  selectedWall = (hit >= 0) ? hit : -1;
+  mgraphics.redraw();
+}
+
+function ondrag(x, y, button, mod1, shift, capslock, option, ctrl) {
+  if (drawMode) {
+    if (!currentDraw) return;
+    if (button === 0) { finishDraw(); return; }
+    var last = currentDraw.points[currentDraw.points.length - 1];
+    var dx = x - last.x, dy = y - last.y;
+    if (dx * dx + dy * dy > 16) currentDraw.points.push({ x: x, y: y });
+    mgraphics.redraw();
+    return;
+  }
+  if (draggingSource) {
+    if (button === 0) { draggingSource = false; return; }
+    source.x = x; source.y = y;
+    mgraphics.redraw();
+  }
+}
+
+function finishDraw() {
+  if (currentDraw && currentDraw.points.length > 1) {
+    walls.push({
+      id: nextWallId++,
+      points: simplify(currentDraw.points, 2.0),
+      color: [0.55, 0.78, 1, 0.95]
+    });
+    dumpGeometry();
+  }
+  currentDraw = null;
+  mgraphics.redraw();
+}
+
+function simplify(pts, eps) {
+  if (pts.length < 3) return pts;
+  function rdp(a, b) {
+    var ax = pts[a].x, ay = pts[a].y;
+    var bx = pts[b].x, by = pts[b].y;
+    var maxD = 0, idx = -1;
+    for (var i = a + 1; i < b; i++) {
+      var d = perpDist(pts[i], ax, ay, bx, by);
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (maxD > eps && idx > 0) {
+      var l = rdp(a, idx), r = rdp(idx, b);
+      return l.slice(0, l.length - 1).concat(r);
+    }
+    return [pts[a], pts[b]];
+  }
+  function perpDist(p, ax, ay, bx, by) {
+    var dx = bx - ax, dy = by - ay;
+    var L2 = dx * dx + dy * dy;
+    if (L2 < 1e-9) {
+      var ddx = p.x - ax, ddy = p.y - ay;
+      return Math.sqrt(ddx * ddx + ddy * ddy);
+    }
+    var t = ((p.x - ax) * dx + (p.y - ay) * dy) / L2;
+    t = Math.max(0, Math.min(1, t));
+    var qx = ax + t * dx, qy = ay + t * dy;
+    var ddx = p.x - qx, ddy = p.y - qy;
+    return Math.sqrt(ddx * ddx + ddy * ddy);
+  }
+  return rdp(0, pts.length - 1);
+}
+
+function findNearestWallIndex(x, y, threshold) {
+  var best = -1, bd = threshold;
+  for (var i = 0; i < walls.length; i++) {
+    for (var j = 0; j + 1 < walls[i].points.length; j++) {
+      var d = pointToSegmentDist(x, y, walls[i].points[j], walls[i].points[j + 1]);
+      if (d < bd) { bd = d; best = i; }
+    }
+  }
+  return best;
+}
+
+function pointToSegmentDist(x, y, a, b) {
+  var dx = b.x - a.x, dy = b.y - a.y;
+  var L2 = dx * dx + dy * dy;
+  if (L2 < 1e-9) {
+    var ex = x - a.x, ey = y - a.y;
+    return Math.sqrt(ex * ex + ey * ey);
+  }
+  var t = ((x - a.x) * dx + (y - a.y) * dy) / L2;
+  t = Math.max(0, Math.min(1, t));
+  var qx = a.x + t * dx, qy = a.y + t * dy;
+  var ex = x - qx, ey = y - qy;
+  return Math.sqrt(ex * ex + ey * ey);
+}
+
+// ---------- inlet handlers ----------
+function drawmode(v) { drawMode = v ? 1 : 0; currentDraw = null; mgraphics.redraw(); }
+function rate_ms(v) { rateMs = Math.max(10, v); }
+function speed_px_s(v) { speedPxPerSec = Math.max(20, v); }
+function max_bounces(v) { maxBounces = Math.max(1, Math.min(32, Math.round(v))); }
+function clear_walls() { walls = []; selectedWall = -1; dumpGeometry(); mgraphics.redraw(); }
+function delete_selected() {
+  if (selectedWall >= 0 && selectedWall < walls.length) {
+    walls.splice(selectedWall, 1);
+    selectedWall = -1;
+    dumpGeometry();
+    mgraphics.redraw();
+  }
+}
+function source_xy(x, y) { source.x = x; source.y = y; mgraphics.redraw(); }
+function clear_particles() { particles = []; }
+
+function emit_dir(deg) {
+  emitAngleDeg = ((deg % 360) + 360) % 360;
+  mgraphics.redraw();
+}
+function emit_spread(deg) {
+  sweepDeg = Math.max(0, Math.min(360, deg));
+  mgraphics.redraw();
+}
+function source_mode(n) {
+  sourceMode = (n | 0);
+  mgraphics.redraw();
+}
+
+// Called from patcher: [notein] → [pack] → prepend midi_note → v8ui inlet
+function midi_note(pitch, vel) {
+  if (sourceMode !== 1) return;
+  if (vel <= 0) return;        // ignore note-off
+  emitParticle(nowMs());
+}
+
+// ---------- persistence ----------
+// Wall layout flows out as: "geometry <safe-encoded-json>". JSON contains
+// commas / quotes / braces that don't round-trip cleanly through Max's symbol
+// serialization into the .als file, so encode to an alphanumeric-only form
+// (digits + letters stay; everything else becomes _XX hex).
+function safeEncode(s) {
+  var out = "";
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if ((c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+      out += s.charAt(i);
+    } else {
+      var hex = c.toString(16);
+      if (hex.length < 2) hex = "0" + hex;
+      out += "_" + hex;
+    }
+  }
+  return out;
+}
+
+function safeDecode(s) {
+  return s.replace(/_([0-9a-fA-F]{2})/g, function(m, h) {
+    return String.fromCharCode(parseInt(h, 16));
+  });
+}
+
+function dumpGeometry() {
+  var snapshot = { source: source, nextWallId: nextWallId, walls: walls };
+  outlet(0, "geometry", safeEncode(JSON.stringify(snapshot)));
+}
+
+function restore(payload) {
+  try {
+    if (payload === undefined || payload === null || payload === 0 || payload === "") return;
+    var decoded = safeDecode(String(payload));
+    var s = JSON.parse(decoded);
+    if (s.source) source = s.source;
+    if (typeof s.nextWallId === "number") nextWallId = s.nextWallId;
+    if (s.walls && s.walls.length) walls = s.walls;
+    mgraphics.redraw();
+  } catch (e) {
+    post("bouncer.js: restore failed: " + e.message + "\n");
+  }
+}
+
+post("bouncer.js: loaded ok\n");

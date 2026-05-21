@@ -1,0 +1,658 @@
+## Recommended direction
+
+Build this as a **Max for Live Audio Effect** with two mostly separate systems:
+
+**1. A visual/physics canvas**
+Use **Max 9 `v8ui` + MGraphics** for the point source, dots, hand-drawn wall segments, collision detection, reflection, editing, selection, and drawing. `v8ui` is the current Max 9 JavaScript UI object, and it exposes MGraphics/sketch for visual output; MGraphics is the drawing API used for custom shapes, paths, text, and images. ([Cycling '74 Documentation][1])
+
+**2. A fixed audio engine**
+Use `plugin~` → delay/buffer/effect voices → stereo mix → `plugout~`. A Max for Live Audio Effect gets audio from Live via `plugin~` and returns it via `plugout~`; current M4L audio I/O is stereo-limited, so all wall/effect voices should be mixed internally back to stereo. ([Cycling '74 Documentation][2])
+
+As of today, **Live 12 comes bundled with Max 9**, and Max 9 is not compatible with Live 11 or earlier. Cycling ’74’s current Max download page lists **Max 9.1.4** as the current Max 9 version, so develop against Live 12 + Max 9 unless you deliberately want Live 11 compatibility. ([Ableton Help][3])
+
+---
+
+## The key trick: precompute the bounces
+
+Do **not** rely on frame-by-frame visual collision detection to trigger audio, because JavaScript UI code runs in Max’s low-priority thread. That is fine for drawing, editing, and interaction, but not ideal for tight audio timing. Max’s JavaScript docs explicitly note that JavaScript always executes in the low-priority thread. ([Cycling '74 Documentation][4])
+
+Instead, when a dot/particle is emitted, compute its whole ray path immediately:
+
+```text
+source point → wall hit 1 → reflected ray → wall hit 2 → reflected ray → exit screen
+```
+
+Then send a list of scheduled collision events to the audio engine:
+
+```text
+particle_id, wall_id, hit_time_ms, delay_age_ms, x, y, normal_x, normal_y, energy, bounce_index
+```
+
+The visual UI animates the dot along the same path, while Max schedules the audio events with normal Max timing tools such as `pipe`/`delay`. Max’s scheduler docs say `delay` or `pipe` can move an event from the low-priority queue into the high-priority scheduler. ([Cycling '74 Documentation][5])
+
+This gives you a device that **looks like live bouncing particles**, but whose hit events are not dependent on the redraw frame rate.
+
+---
+
+## Step-by-step incremental plan
+
+### 0. Choose the first musical model
+
+Start with this simple interpretation:
+
+**Each dot is a small time-slice of the incoming sound.**
+A dot is emitted from the source point. When it hits a wall, the device plays a delayed copy of the sound slice from the dot’s emission time. The wall can also color that copy with a chosen effect.
+
+So the particle’s travel time becomes the delay time:
+
+```text
+delay_ms = time_of_wall_hit - time_of_particle_emission
+```
+
+This is the cleanest mapping between the drawing and the sound.
+
+---
+
+### 1. Create the basic Max Audio Effect
+
+Create a new **Max Audio Effect** in Live. Leave the default `plugin~` and `plugout~` in place. Build a bypassable dry/wet structure:
+
+```text
+plugin~ 1/2
+   ├── dry path
+   └── wet engine
+          ↓
+       mix/limiter
+          ↓
+plugout~ 1/2
+```
+
+Add global Live UI controls first:
+
+```text
+live.dial Dry/Wet
+live.dial Particle Rate
+live.dial Projection Speed
+live.dial Hit Gain
+live.dial Max Bounces
+live.toggle Draw Mode
+live.toggle Freeze Walls
+live.menu Wall Effect
+```
+
+Max for Live parameters should use `live.*` UI objects where possible because they store with the Live Set, support MIDI/key mapping, and can be made automatable in Live. ([Cycling '74 Documentation][6])
+
+---
+
+### 2. Build the visual canvas with no audio
+
+Add a large `v8ui` object in Presentation Mode. This object will own:
+
+```javascript
+source = { x, y }
+walls = [
+  { id, points: [{x,y}, {x,y}, ...], effectSlot, params }
+]
+particles = [
+  { id, emitTime, pathSegments, energy, color, alive }
+]
+```
+
+Start with only:
+
+```text
+- source point
+- one dot moving in a straight line
+- screen bounds
+- offscreen death
+```
+
+For the canvas, use `mgraphics.init()`, a `paint()` function, and mouse handlers. The MGraphics quickstart says the custom drawing object defines `paint()` and can force refresh with `mgraphics.redraw()`. ([Cycling '74 Documentation][7])
+
+Target 30–60 FPS visually. Do **not** send audio control data every frame.
+
+---
+
+### 3. Add hand-drawn walls
+
+In draw mode:
+
+```text
+mousedown → start new polyline
+mousemove → append points if distance from last point > threshold
+mouseup   → simplify/smooth and assign wall id
+```
+
+Store each wall as short line segments:
+
+```javascript
+wall.segments = [
+  { ax, ay, bx, by, wallId, segmentIndex }
+]
+```
+
+Add basic editing:
+
+```text
+click wall → select
+delete → remove
+drag endpoint → reshape
+shift-drag → straight segment
+option/alt-drag → duplicate
+```
+
+Use Max’s `dict` or `pattr` storage for the wall layout. For M4L storage, variable wall geometry is better treated as a stored **blob/dict-style state**, not as hundreds of individual automatable Live parameters. The M4L parameter docs distinguish automatable numeric/enum parameters from blob data that can be stored in presets but not automated. ([Cycling '74 Documentation][6])
+
+---
+
+### 4. Implement ray/segment collision
+
+In the `v8ui` JavaScript, write a deterministic ray-caster.
+
+For each particle:
+
+```javascript
+function reflect(v, n) {
+  const d = v.x * n.x + v.y * n.y;
+  return {
+    x: v.x - 2 * d * n.x,
+    y: v.y - 2 * d * n.y
+  };
+}
+```
+
+For each emitted particle, compute:
+
+```javascript
+function computePath(source, velocity, walls, maxBounces, speedPxPerMs) {
+  let p = {...source};
+  let v = normalize(velocity);
+  let t = 0;
+  const events = [];
+  const segments = [];
+
+  for (let bounce = 0; bounce < maxBounces; bounce++) {
+    const hit = findNearestRaySegmentIntersection(p, v, walls);
+
+    if (!hit) {
+      segments.push({ from: p, to: exitPoint(p, v), t0: t, t1: Infinity });
+      break;
+    }
+
+    const dist = distance(p, hit.point);
+    const dt = dist / speedPxPerMs;
+    const hitTime = t + dt;
+
+    segments.push({ from: p, to: hit.point, t0: t, t1: hitTime });
+
+    events.push({
+      wallId: hit.wallId,
+      segmentIndex: hit.segmentIndex,
+      hitTimeMs: hitTime,
+      delayMs: hitTime,
+      x: hit.point.x,
+      y: hit.point.y,
+      nx: hit.normal.x,
+      ny: hit.normal.y,
+      bounce
+    });
+
+    v = reflect(v, hit.normal);
+    p = {
+      x: hit.point.x + v.x * 0.01,
+      y: hit.point.y + v.y * 0.01
+    };
+    t = hitTime;
+  }
+
+  return { segments, events };
+}
+```
+
+Send the resulting event list to Max as messages:
+
+```text
+hit particle_id wall_id delay_ms gain pan bounce
+```
+
+A good first version is one particle every 50–100 ms. Later, increase density or make rate follow the input amplitude.
+
+---
+
+### 5. Make the first “wall hit = delay tap” audio prototype
+
+Use `tapin~` / `tapout~` first. `tapin~` continuously stores recent audio, and `tapout~` reads delayed versions of that signal; Cycling ’74’s delay tutorial describes `tapin~` as a continuously updated buffer storing recent signal, with `tapout~` tapping into that past signal. ([Cycling '74 Documentation][8])
+
+Start with a fixed number of hit voices, for example 8 or 16:
+
+```text
+plugin~ L/R
+  ↓
+tapin~ 5000
+  ↓
+tapout~ voice1 voice2 voice3 ... voice16
+```
+
+Each hit voice receives:
+
+```text
+delay_ms
+gain
+pan
+wall_id
+envelope_ms
+```
+
+The voice does:
+
+```text
+tapout~ at delay_ms
+  → short envelope gate
+  → gain based on particle energy / bounce index
+  → pan based on hit x position
+  → wall effect bus
+```
+
+Use signal-rate delay control where practical, because `tapout~` is sub-sample accurate when receiving a delay-time signal; changing fixed numeric delay times can click, which matters once you make fast-moving or overlapping taps. ([Cycling '74 Documentation][9])
+
+---
+
+### 6. Add particle-driven sound shaping
+
+Give each particle metadata:
+
+```javascript
+particle.energy
+particle.speed
+particle.size
+particle.brightness
+particle.age
+particle.bounceCount
+```
+
+Map that into sound:
+
+```text
+energy       → hit gain
+speed        → delay feedback / grain length / filter cutoff
+bounceCount  → darker tone each bounce
+hit x        → pan
+hit y        → filter cutoff or reverb size
+wall normal  → stereo direction or pitch bend
+```
+
+This makes the visualization musically meaningful instead of decorative.
+
+---
+
+### 7. Add per-wall effects
+
+Do not dynamically create arbitrary effect chains while Live is playing. Use a fixed set of internal buses, then assign walls to those buses.
+
+For example:
+
+```text
+Bus 0: clean delay tap
+Bus 1: filtered delay
+Bus 2: echo
+Bus 3: reverb
+Bus 4: distortion / resonator
+Bus 5: pitch / shimmer
+Bus 6: freeze
+Bus 7: send-only / silent trigger
+```
+
+For current Max 9 development, the **Ableton DSP** objects are very useful. Cycling ’74 documents Ableton DSP as a collection of objects that bring Live devices and high-level DSP components into Max, including device-style objects and smaller DSP components. ([Cycling '74 Documentation][10])
+
+Useful wall-effect candidates:
+
+```text
+abl.device.delay~     simple stereo delay
+abl.device.echo~      richer modulation delay
+abl.dsp.prism~        Hybrid Reverb-style reverb
+abl.device.roar~      distortion / saturation / feedback color
+filtergraph~ + svf~   custom filter wall
+freqshift~            metallic reflection
+```
+
+`abl.device.delay~` gives you stereo delay with delay time, feedback, filtering, ping-pong, freeze, mix, and modulation controls. ([Cycling '74 Documentation][11]) `abl.device.echo~` is a modulation delay with two delay lines plus envelope/filter modulation, ducking, gate, noise, reverb, and feedback-style parameters. ([Cycling '74 Documentation][12]) `abl.dsp.prism~` gives a Prism reverb algorithm from Live’s Hybrid Reverb device, with decay, size, crossover, freeze, and mix parameters. ([Cycling '74 Documentation][13])
+
+---
+
+### 8. Make wall selection and wall parameters
+
+When a wall is selected, show controls for that wall:
+
+```text
+Effect Type
+Hit Gain
+Reflection Loss
+Absorption
+Scatter
+Delay Multiplier
+Pan Width
+Filter Cutoff
+Feedback Send
+Color
+```
+
+Store wall data like:
+
+```json
+{
+  "walls": [
+    {
+      "id": 12,
+      "points": [[104, 88], [260, 133], [370, 125]],
+      "effectSlot": 2,
+      "hitGain": 0.75,
+      "reflectionLoss": 0.2,
+      "scatter": 0.05,
+      "delayMultiplier": 1.0,
+      "color": [0.8, 0.9, 1.0, 1.0]
+    }
+  ]
+}
+```
+
+Only expose a small number of global controls to Live automation at first. Exposing every wall’s parameters as Live automation will get messy quickly, especially because the user can draw an arbitrary number of wall segments.
+
+---
+
+### 9. Emit particles from the input sound
+
+Start with a clocked stream:
+
+```text
+metro 50 ms → spawn particle
+```
+
+Then make it audio-reactive:
+
+```text
+input amplitude envelope → spawn density
+transient detector       → burst of particles
+spectral centroid        → particle color / speed
+input pitch              → launch angle
+stereo balance           → source spread
+```
+
+A simple first patch:
+
+```text
+plugin~
+  → average~/snapshot~ or peakamp~
+  → threshold/change
+  → spawn message to v8ui
+```
+
+Keep the audio-to-visual data rate modest. Max’s scheduler docs warn that very rapid streams into low-priority objects can create event backlog; they specifically note that connecting fast `snapshot~` output into `v8` can push too many events onto the low-priority queue. ([Cycling '74 Documentation][5])
+
+---
+
+### 10. Upgrade from “delay taps” to “audio particles”
+
+Once the simple delay version works, move toward a more literal particle/grain system.
+
+Each emitted particle stores:
+
+```text
+emit_time_ms
+buffer_position_at_emit
+grain_length_ms
+energy
+```
+
+At each wall hit:
+
+```text
+read from input buffer at buffer_position_at_emit
+play grain through wall effect
+```
+
+This lets one dot truly carry one sound grain. The rough audio design becomes:
+
+```text
+input → circular buffer
+particle emitted → remember write head position
+collision → poly~ grain voice reads that slice
+grain voice → wall effect bus
+```
+
+This is more flexible than simple `tapout~`, because you can reverse grains, pitch them, freeze them, stretch them, or replay the same particle through multiple wall effects.
+
+For the most robust version, build the grain/delay core in `gen~`. Cycling ’74’s gen~ delay tutorial emphasizes that `gen~` works sample-by-sample and is useful for custom delay lines and tight feedback structures. ([cycling74.com][14])
+
+---
+
+### 11. Add bounce behavior beyond reflection
+
+Once the basic reflection works, give walls more personality:
+
+```text
+Absorb wall:      reduces particle energy each hit
+Scatter wall:     adds random angular offset
+Portal wall:      teleports particle to paired wall
+Freeze wall:      captures/repeats grain
+Reverse wall:     plays grain backwards
+Pitch wall:       pitch-shifts per bounce
+Granular wall:    sprays several smaller child particles
+Filter wall:      changes cutoff based on hit position
+Compressor wall:  dynamics effect per hit
+```
+
+A wall hit can output multiple event types:
+
+```text
+hit_delay
+hit_effect
+spawn_child_particle
+kill_particle
+change_speed
+change_direction
+```
+
+This is where the device becomes more than a delay.
+
+---
+
+### 12. Keep the M4L version stable
+
+A few guardrails will save you pain:
+
+Use a **fixed maximum number of voices** first, such as 16 or 32. Arbitrary particle counts are fun visually, but arbitrary audio voices can overload Live.
+
+Keep the **visual frame rate separate** from the audio event scheduler.
+
+Use `v8ui` for UI and geometry, not for sample-accurate audio decisions.
+
+Use the Live API only if you want to control other Live devices/tracks/clips. For the internal effect engine, ordinary Max/MSP objects are simpler. Ableton’s M4L Live API docs describe it as the mechanism for querying, observing, and controlling Live’s object model, not as a replacement for the device’s audio DSP path. ([Ableton Help][15])
+
+Avoid sending audio between separate M4L devices with `send~`/`receive~`; Cycling ’74’s M4L audio-device docs say that sending audio to another M4L device using Max `send`, `receive`, `send~`, or `receive~` is not supported. ([Cycling '74 Documentation][2])
+
+---
+
+## Suggested build milestones
+
+### Milestone 1: visual toy
+
+Goal: no audio yet.
+
+Features:
+
+```text
+- source point
+- dots emit at constant rate
+- user draws walls
+- dots bounce correctly
+- dots die offscreen or after N bounces
+- wall layout saves and reloads
+```
+
+Success test: you can draw a box and particles bounce around it predictably.
+
+---
+
+### Milestone 2: collision messages
+
+Goal: visual world sends clean events.
+
+Features:
+
+```text
+- each wall has an id
+- each particle has an id
+- hit event prints to Max console:
+  hit particle_id wall_id delay_ms x y bounce
+```
+
+Success test: if you slow the particle speed, the delay time printed at each wall hit increases.
+
+---
+
+### Milestone 3: basic delay wall
+
+Goal: every hit produces a delayed audio tap.
+
+Features:
+
+```text
+- tapin~/tapout~ delay memory
+- 8 or 16 hit voices
+- short envelope per hit
+- hit gain and pan
+- dry/wet
+```
+
+Success test: draw a wall closer to the source and the echo is shorter; move it farther away and the echo is longer.
+
+---
+
+### Milestone 4: per-wall effect slots
+
+Goal: different walls sound different.
+
+Features:
+
+```text
+- select wall
+- choose effect type
+- set wall gain/loss
+- route hit voice to chosen internal effect bus
+```
+
+Success test: wall A sounds like echo, wall B sounds like reverb, wall C sounds distorted.
+
+---
+
+### Milestone 5: audio-reactive emission
+
+Goal: input sound controls the projection.
+
+Features:
+
+```text
+- amplitude controls particle brightness/energy
+- transients spawn bursts
+- global speed/density controls
+- optional stereo input controls launch spread
+```
+
+Success test: drums throw big bursts; quiet material creates smaller/lighter particles.
+
+---
+
+### Milestone 6: granular particle audio
+
+Goal: particles carry sound slices rather than merely triggering delay taps.
+
+Features:
+
+```text
+- circular buffer
+- each particle stores buffer position at emission
+- hit plays that grain through wall effect
+- pitch/reverse/freeze options
+```
+
+Success test: one particle can hit multiple walls and replay/transmute the same captured slice.
+
+---
+
+## Minimal first patch architecture
+
+```text
+[plugin~ 1 2]
+    │
+    ├────────────── dry gain ──────────────┐
+    │                                      │
+    ├─ [tapin~ 5000]                       │
+    │        │                             │
+    │     [tapout~ ... up to 16 taps ...]  │
+    │        │                             │
+    │   [poly~ hitVoice 16]                │
+    │        │                             │
+    │   [wall effect buses]                │
+    │        │                             │
+    └──────────── wet gain ────────────────┤
+                                           │
+                                      [limiter~]
+                                           │
+                                      [plugout~ 1 2]
+
+
+[v8ui canvas]
+    │
+    ├─ draw/edit walls
+    ├─ emit particles
+    ├─ precompute path + hit events
+    └─ output: hit particle wall delay gain pan bounce
+```
+
+The first `hitVoice` can be very simple:
+
+```text
+inlet: delay_ms gain pan env_ms wall_id
+    ↓
+set tap delay
+    ↓
+delayed audio
+    ↓
+line~/function envelope
+    ↓
+*~
+    ↓
+pan2
+    ↓
+send to selected wall bus
+```
+
+---
+
+## The most important implementation choices
+
+Use **Max 9 / Live 12** for this project. That gives you the modern `v8`/`v8ui` JavaScript engine and the newer Ableton DSP objects. ([Cycling '74 Documentation][4])
+
+Use **`v8ui` for the canvas**, not `lcd`, unless you want a very old-school patching approach. `v8ui` is better suited to drawn geometry, mouse interaction, persistent wall data, and ray-casting logic.
+
+Use **precomputed collision itineraries** so the audio trigger times are based on geometry, not redraw timing.
+
+Use **a fixed number of audio voices** first. Make the visual world unlimited later, but keep the audio engine capped.
+
+Start with **delay taps**, then evolve into **granular particle playback** once the core interaction feels good.
+
+[1]: https://docs.cycling74.com/reference/v8ui/ "v8ui - Max Reference | Cycling '74 Documentation"
+[2]: https://docs.cycling74.com/userguide/m4l/live_audiodevices/ "Creating Audio Effect Devices | Cycling '74 Documentation"
+[3]: https://help.ableton.com/hc/en-us/articles/209772305-Recommended-Max-versions "Recommended Max versions – Ableton "
+[4]: https://docs.cycling74.com/userguide/javascript/ "JavaScript | Cycling '74 Documentation"
+[5]: https://docs.cycling74.com/userguide/scheduler/ "Scheduler and Priority | Cycling '74 Documentation"
+[6]: https://docs.cycling74.com/userguide/m4l/live_parameters/ "Device Parameters in Max for Live | Cycling '74 Documentation"
+[7]: https://docs.cycling74.com/learn/articles/01-quickstart/?utm_source=chatgpt.com "Quickstart - Max Documentation - Cycling '74"
+[8]: https://docs.cycling74.com/learn/articles/15_delaychapter01/ "MSP Delay Tutorial 1: Delay Lines | Cycling '74 Documentation"
+[9]: https://docs.cycling74.com/reference/tapout~/ "tapout~ - MSP Reference | Cycling '74 Documentation"
+[10]: https://docs.cycling74.com/userguide/abl/ "Ableton DSP | Cycling '74 Documentation"
+[11]: https://docs.cycling74.com/reference/abl.device.delay~ "abl.device.delay~ - Ableton DSP Reference | Cycling '74 Documentation"
+[12]: https://docs.cycling74.com/reference/abl.device.echo~ "abl.device.echo~ - Ableton DSP Reference | Cycling '74 Documentation"
+[13]: https://docs.cycling74.com/reference/abl.dsp.prism~ "abl.dsp.prism~ - Ableton DSP Reference | Cycling '74 Documentation"
+[14]: https://cycling74.com/tutorials/gen-tutorial-1-the-garden-of-earthly-delays "Tutorial: gen~: The Garden of Earthly Delays | Cycling '74"
+[15]: https://help.ableton.com/hc/en-us/articles/5402681764242-Controlling-Live-using-Max-for-Live "Controlling Live using Max for Live – Ableton "

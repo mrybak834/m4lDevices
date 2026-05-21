@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Max
+*.maxbackup
+*.maxsnap
+
+# Misc
+*.log
+
+# Live's default Max Audio Effect saves at the repo root.
+# Devices we develop are in subfolders and tracked explicitly.
+/*.amxd
