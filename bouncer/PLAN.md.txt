@@ -1,3 +1,72 @@
+## Updated design (2026-05-21)
+
+The original plan below treats this as a delay-tap effect with a fixed set of internal effect buses (steps 7–8). Today's revision broadens it: the bouncer is a **multi-modal spatial trigger** — walls can drive audio voices *or* MIDI notes *or* Ableton parameter modulation. Sections of the original plan that are superseded are flagged inline. Updated milestone breakdown lives in `PROGRESS.md`.
+
+### Device type — locked to Max Audio Effect
+
+Researched and confirmed: only the Audio Effect device type can simultaneously support audio in, audio out, MIDI in, and MIDI out within a single device.
+
+| Capability | Audio Effect | Instrument | MIDI Effect |
+|---|---|---|---|
+| Audio in | ✅ `plugin~` | ❌ none | ❌ none |
+| Audio out | ✅ `plugout~` | ✅ | ❌ none |
+| MIDI in | ✅ via parallel MIDI track | ✅ (consumes to make sound — "MIDI gets eaten") | ✅ passes through to instrument |
+| MIDI out | ✅ `noteout`/`midiout` routes to a separate MIDI track that selects this device as its input source | ⚠️ same constraint as Audio Effect | ✅ passes downstream within the same track |
+
+Instruments cannot accept audio input, so they're out. MIDI Effects can't produce or receive audio, so they're out. The Audio Effect's "cost" is that both MIDI in and MIDI out require the user to set up one additional Live track each (parallel MIDI track for input; downstream MIDI track with bouncer-as-MIDI-From for output). This is a Live convention, not a Max code change, and is documented in README.
+
+### Per-wall behavior model
+
+Each wall has a **mode** that selects which output path it drives:
+
+```
+wall.mode = "audio" | "midi" | "mod"
+```
+
+- **audio** — wall hit triggers a `poly~ hitvoice` tap voice (the original M3 plan). Per-wall config: gain, pan bias, pitch offset, voice tuning.
+- **midi** — wall hit emits `noteout` with `snapshot.pitch + wall.noteOffset` and a scheduled note-off. Per-wall config: note offset, velocity scale, duration, channel. User routes the output to a downstream MIDI track + instrument.
+- **mod** — wall hit pulses a `live.dial` (`Wall Mod 1` … `Wall Mod 8`) exposed as a device parameter, decays back. Per-wall config: dial index, peak value, decay ms. User clicks Ableton's Map button on any parameter (filter cutoff, send level, etc.) and learns it from the dial. This is the idiomatic M4L pattern used by Envelope Follower / LFO Tool.
+
+Default mode for new walls: `"audio"`. Modes are mutually exclusive in v1; could be made non-exclusive later if useful.
+
+The old "fixed internal effect buses" approach (step 7 below) is **superseded**: per-wall character comes from outboard Ableton effects driven by MIDI/mod, plus per-wall params inside the audio voice. The bouncer doesn't host its own bus rack.
+
+### Particle snapshot model
+
+At particle emission, capture into the particle:
+
+```
+particle.snapshot = { pitch, velocity, emittedAt, alive }
+```
+
+At each wall hit, the snapshot drives output regardless of whether the source note is still held. **Note-off has no effect on already-emitted particles** — they carry their snapshot through their full flight, fire walls along the way, then die offscreen or after N bounces.
+
+For audio source mode (the M3a delay engine): no snapshot needed for sound — the `tapin~` buffer is always recording, and at hit time `tapout~` reads from `now - travel_time_ms`. That's *the audio that was playing when the particle was emitted*. If the user stopped playing audio between emission and hit, the tap returns whatever was in the buffer then — often the natural tail or silence. This is acoustically correct: each particle carries the moment of its origin.
+
+For MIDI source mode: pitch+velocity from snapshot drive `noteout` at hit.
+
+For random source mode: pitch generated from a per-wall offset against a base note.
+
+Future modes to consider (deferred): live-tied (particle dies on note-off) and sustained-while-flying (note-on at emission, note-off when particle exits).
+
+**Known v1 limitation:** overlapping same-pitch notes share one note-off — all live particles with that snapshot pitch flip together when any matching note-off arrives. MIDI doesn't distinguish overlapping notes of the same pitch, and we don't yet maintain per-pitch note-on counts. Fine for typical keyboard playing; refinement options are a per-pitch counter or FIFO matching.
+
+### Particle visual states (M3b)
+
+- **Filled circle**: source note still live (MIDI source = key still held; random source = within ~1s after emission).
+- **Unfilled circle**: source has ended.
+- **Hit flash**: brief refill on each wall hit, fades back to current state over ~150ms.
+
+Implementation: per-particle `alive: bool` plus `hitFlashUntilMs`. Render path in `bouncer.js` checks both. Note-offs found by matching `notein` pitch against the snapshot pitch of live particles.
+
+### Parameter modulation — Phase 1 (ship) vs. Phase 2 (later)
+
+**Phase 1 (M3d):** 8 `live.dial` outputs exposed as device parameters; walls in mod mode pulse their assigned dial; user maps in Live's Map mode. Cap of 8 dials limits how many independent modulation targets exist concurrently. Walls can share a dial.
+
+**Phase 2 (M7):** per-wall Map Button captures a Live API path to a target parameter; on hit, the wall writes directly to that parameter via `live.object` / `live.remote~`. Removes the 8-dial cap. Not required for v1.
+
+---
+
 ## Recommended direction
 
 Build this as a **Max for Live Audio Effect** with two mostly separate systems:
@@ -287,6 +356,8 @@ This makes the visualization musically meaningful instead of decorative.
 
 ### 7. Add per-wall effects
 
+> **Superseded by the 2026-05-21 design update.** Per-wall character now comes from (a) outboard Ableton effects driven by MIDI/mod modes, and (b) per-wall params inside the audio voice. The internal-bus approach below is preserved as reference for the granular Milestone 6 work, where multiple internal voice flavors may still make sense. For the v1 ship, ignore this section.
+
 Do not dynamically create arbitrary effect chains while Live is playing. Use a fixed set of internal buses, then assign walls to those buses.
 
 For example:
@@ -473,6 +544,8 @@ Avoid sending audio between separate M4L devices with `send~`/`receive~`; Cyclin
 ---
 
 ## Suggested build milestones
+
+> **Updated 2026-05-21.** The authoritative milestone list lives in [`PROGRESS.md`](PROGRESS.md). M1 and M2 below match what shipped. M3 has been expanded and split into six sub-milestones (M3a–M3f) covering audio engine, particle snapshots/visuals, MIDI out, parameter modulation, canvas bug fixes, and cleanup — see `PROGRESS.md` for the current breakdown. M4 below ("per-wall effect slots") is superseded; M4 in `PROGRESS.md` is now the per-wall config UI. M5 and M6 below still stand.
 
 ### Milestone 1: visual toy
 

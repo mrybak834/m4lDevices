@@ -230,10 +230,21 @@
 					"numoutlets" : 2,
 					"outlettype" : [ "", "float" ],
 					"patching_rect" : [ 340.0, 100.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 142.0, 12.0, 32.0, 44.0 ],
 					"parameter_enable" : 1,
+					"activedialcolor" : [ 0.55, 0.95, 0.85, 1.0 ],
+					"activeneedlecolor" : [ 0.55, 0.95, 0.85, 1.0 ],
+					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
+					"bordercolor" : [ 0.20, 0.30, 0.40, 0.6 ],
+					"needlecolor" : [ 0.55, 0.65, 0.75, 0.6 ],
+					"panelcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
+					"textcolor" : [ 0.85, 0.92, 0.98, 0.85 ],
+					"tribordercolor" : [ 0.55, 0.95, 0.85, 0.3 ],
+					"tricolor" : [ 0.55, 0.95, 0.85, 1.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
-							"parameter_initial" : [ 0.0 ],
+							"parameter_initial" : [ 50.0 ],
 							"parameter_initial_enable" : 1,
 							"parameter_longname" : "DryWet",
 							"parameter_mmax" : 100.0,
@@ -546,7 +557,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 700.0, 40.0, 520.0, 380.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 160.0, 4.0, 416.0, 148.0 ]
+					"presentation_rect" : [ 180.0, 4.0, 396.0, 148.0 ]
 				}
 			},
 			{
@@ -722,7 +733,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 250.0, 530.0, 195.0, 22.0 ],
-					"text" : "if $i1 > 0 then 1196 else 576"
+					"text" : "if $i1 > 0 then 1016 else 396"
 				}
 			},
 			{
@@ -733,7 +744,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 250.0, 565.0, 290.0, 22.0 ],
-					"text" : "script sendbox v8ui presentation_rect 160 4 $1 152"
+					"text" : "script sendbox v8ui presentation_rect 180 4 $1 152"
 				}
 			},
 			{
@@ -764,8 +775,8 @@
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 130.0, 720.0, 320.0, 18.0 ],
-					"text" : "Audio passthrough — wet engine added in Milestone 3"
+					"patching_rect" : [ 290.0, 745.0, 360.0, 18.0 ],
+					"text" : "M3a: tapin~ + poly~ hitvoice tap engine. Dry/Wet crossfade."
 				}
 			},
 			{
@@ -777,11 +788,184 @@
 					"patching_rect" : [ 200.0, 400.0, 360.0, 18.0 ],
 					"text" : "MIDI input — only fires on MIDI tracks (notein is silent on audio tracks)"
 				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-zlnth",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 700.0, 540.0, 100.0, 22.0 ],
+					"text" : "zl nth 3 4 5"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-tlb",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "bang" ],
+					"patching_rect" : [ 700.0, 575.0, 50.0, 22.0 ],
+					"text" : "t l b"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-targetMsg",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 770.0, 575.0, 60.0, 22.0 ],
+					"text" : "target 0"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-poly",
+					"maxclass" : "newobj",
+					"numinlets" : 3,
+					"numoutlets" : 2,
+					"outlettype" : [ "signal", "signal" ],
+					"patching_rect" : [ 470.0, 615.0, 540.0, 22.0 ],
+					"text" : "poly~ \"D:/Ableton/User Library/Presets/Audio Effects/Max Audio Effect/bouncer/hitvoice.maxpat\" 16 @steal 1"
+				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-dryFract",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "float" ],
+					"patching_rect" : [ 400.0, 150.0, 50.0, 22.0 ],
+					"text" : "* 0.01"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-dryT",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "float", "float" ],
+					"patching_rect" : [ 400.0, 180.0, 50.0, 22.0 ],
+					"text" : "t f f"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-dryInv",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "float" ],
+					"patching_rect" : [ 460.0, 210.0, 50.0, 22.0 ],
+					"text" : "!- 1."
+				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-mulDryL",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "signal" ],
+					"patching_rect" : [ 180.0, 685.0, 50.0, 22.0 ],
+					"text" : "*~ 1."
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mulDryR",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "signal" ],
+					"patching_rect" : [ 240.0, 685.0, 50.0, 22.0 ],
+					"text" : "*~ 1."
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mulWetL",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "signal" ],
+					"patching_rect" : [ 300.0, 685.0, 50.0, 22.0 ],
+					"text" : "*~ 0."
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mulWetR",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "signal" ],
+					"patching_rect" : [ 360.0, 685.0, 50.0, 22.0 ],
+					"text" : "*~ 0."
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-sumL",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "signal" ],
+					"patching_rect" : [ 180.0, 720.0, 40.0, 22.0 ],
+					"text" : "+~"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-sumR",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "signal" ],
+					"patching_rect" : [ 240.0, 720.0, 40.0, 22.0 ],
+					"text" : "+~"
+				}
 			}
 		],
 		"lines" : [
-			{ "patchline" : { "destination" : [ "obj-plugout", 0 ], "source" : [ "obj-plugin", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-plugout", 1 ], "source" : [ "obj-plugin", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-poly", 1 ], "source" : [ "obj-plugin", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mulDryL", 0 ], "source" : [ "obj-plugin", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-poly", 2 ], "source" : [ "obj-plugin", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-mulDryR", 0 ], "source" : [ "obj-plugin", 1 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-mulWetL", 0 ], "source" : [ "obj-poly", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mulWetR", 0 ], "source" : [ "obj-poly", 1 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-sumL", 0 ], "source" : [ "obj-mulDryL", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-sumL", 1 ], "source" : [ "obj-mulWetL", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-sumR", 0 ], "source" : [ "obj-mulDryR", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-sumR", 1 ], "source" : [ "obj-mulWetR", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-plugout", 0 ], "source" : [ "obj-sumL", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-plugout", 1 ], "source" : [ "obj-sumR", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-zlnth", 0 ], "source" : [ "obj-routev8", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-tlb", 0 ], "source" : [ "obj-zlnth", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-targetMsg", 0 ], "source" : [ "obj-tlb", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-poly", 0 ], "source" : [ "obj-targetMsg", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-poly", 0 ], "source" : [ "obj-tlb", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-dryFract", 0 ], "source" : [ "obj-drywet", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-dryT", 0 ], "source" : [ "obj-dryFract", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mulWetL", 1 ], "source" : [ "obj-dryT", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mulWetR", 1 ], "source" : [ "obj-dryT", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-dryInv", 0 ], "source" : [ "obj-dryT", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-mulDryL", 1 ], "source" : [ "obj-dryInv", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mulDryR", 1 ], "source" : [ "obj-dryInv", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-emitDirPrep", 0 ], "source" : [ "obj-emitDir", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-emitSpreadPrep", 0 ], "source" : [ "obj-emitSpread", 0 ] } },

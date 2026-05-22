@@ -62,6 +62,18 @@ function tick() {
   for (var i = 0; i < particles.length; i++) {
     var p = particles[i];
     var elapsed = now - p.emitTime;
+
+    // Non-MIDI particles have no note-off to wait for; expire srcAlive after 1s.
+    if (p.srcAlive && p.srcType !== "midi" && elapsed > 1000) p.srcAlive = false;
+
+    // Advance through any wall-hit events whose scheduled time has now passed
+    // and refresh the flash timer for each. Multiple hits in one tick just keep
+    // the flash window saturated.
+    while (p.nextEventIdx < p.events.length && elapsed >= p.events[p.nextEventIdx].hitTimeMs) {
+      p.hitFlashUntilMs = now + 150;
+      p.nextEventIdx++;
+    }
+
     var seg = null;
     for (var s = 0; s < p.path.length; s++) {
       if (elapsed <= p.path[s].t1 || !isFinite(p.path[s].t1)) {
@@ -93,7 +105,9 @@ function nowMs() {
 }
 
 // ---------- emission ----------
-function emitParticle(now) {
+// pitch/velocity default to sentinels for non-MIDI sources; srcType identifies
+// whether note-off matching applies (midi) or the particle auto-expires (random/audio).
+function emitParticle(now, pitch, velocity, srcType) {
   var sweepRad = (sweepDeg / 360) * Math.PI * 2;
   var centerRad = emitAngleDeg * Math.PI / 180;
   var ang = centerRad + (Math.random() - 0.5) * sweepRad;
@@ -107,12 +121,28 @@ function emitParticle(now) {
     path: path.segments,
     events: path.events,
     x: source.x, y: source.y,
-    alive: true
+    alive: true,
+    snapshot: {
+      pitch:    (pitch    === undefined) ? -1  : pitch,
+      velocity: (velocity === undefined) ? 100 : velocity,
+      emittedAt: now
+    },
+    srcType: srcType || "random",
+    srcAlive: true,
+    nextEventIdx: 0,
+    hitFlashUntilMs: 0
   });
 
+  // Per-hit gain/pan. Gain decays per bounce (a wall hit on the 4th bounce is
+  // ~-4 dB below the first); pan maps the hit's screen x to [-1, 1]. Per-wall
+  // gain/pan overrides arrive in M4 — for now this is the only sound shape.
+  var Wem = box.rect[2] - box.rect[0];
   for (var i = 0; i < path.events.length; i++) {
     var e = path.events[i];
+    var gain = Math.pow(0.85, e.bounce);
+    var pan = Math.max(-1, Math.min(1, (e.x / Math.max(1, Wem)) * 2 - 1));
     outlet(0, "hit", pid, e.wallId, Math.round(e.delayMs),
+           gain, pan,
            e.x, e.y, e.nx, e.ny, e.bounce);
   }
   outlet(0, "particle", pid, path.events.length);
@@ -262,15 +292,27 @@ function paint() {
     mg.stroke();
   }
 
-  // Particles with faint outer glow
+  // Particles — filled while srcAlive, hollow ring once source has ended.
+  // A wall hit sets hitFlashUntilMs=now+150, which decays linearly back to
+  // the current state, briefly refilling unfilled particles.
   for (var pi = 0; pi < particles.length; pi++) {
     var p = particles[pi];
-    mg.set_source_rgba(1, 1, 1, 0.18);
-    mg.ellipse(p.x - 4, p.y - 4, 8, 8);
-    mg.fill();
-    mg.set_source_rgba(1, 1, 1, 0.98);
-    mg.ellipse(p.x - 2, p.y - 2, 4, 4);
-    mg.fill();
+    var flashStr = Math.max(0, (p.hitFlashUntilMs - now) / 150);
+    var fill = p.srcAlive ? 1 : flashStr;
+
+    if (fill > 0) {
+      mg.set_source_rgba(1, 1, 1, 0.18 * fill);
+      mg.ellipse(p.x - 4, p.y - 4, 8, 8);
+      mg.fill();
+      mg.set_source_rgba(1, 1, 1, 0.98 * fill);
+      mg.ellipse(p.x - 2, p.y - 2, 4, 4);
+      mg.fill();
+    } else {
+      mg.set_source_rgba(1, 1, 1, 0.55);
+      mg.set_line_width(1.2);
+      mg.ellipse(p.x - 2, p.y - 2, 4, 4);
+      mg.stroke();
+    }
   }
 
   // Emission cone — drawn behind the source so the source ring sits on top
@@ -470,11 +512,23 @@ function source_mode(n) {
   mgraphics.redraw();
 }
 
-// Called from patcher: [notein] → [pack] → prepend midi_note → v8ui inlet
+// Called from patcher: [notein] → [pack] → prepend midi_note → v8ui inlet.
+// notein emits the same pitch with velocity 0 for note-off, which we use to
+// flip srcAlive on any in-flight MIDI particles whose snapshot pitch matches.
+// Overlapping same-pitch note-ons aren't disambiguated — all matching live
+// particles flip together. Good enough for v1.
 function midi_note(pitch, vel) {
-  if (sourceMode !== 1) return;
-  if (vel <= 0) return;        // ignore note-off
-  emitParticle(nowMs());
+  post("bouncer.js: midi_note pitch=" + pitch + " vel=" + vel + " mode=" + sourceMode + "\n");
+  if (vel > 0) {
+    if (sourceMode === 1) emitParticle(nowMs(), pitch, vel, "midi");
+    return;
+  }
+  for (var i = 0; i < particles.length; i++) {
+    if (particles[i].snapshot && particles[i].snapshot.pitch === pitch) {
+      particles[i].srcAlive = false;
+    }
+  }
+  mgraphics.redraw();
 }
 
 // ---------- persistence ----------
