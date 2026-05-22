@@ -66,10 +66,19 @@ function tick() {
     // Non-MIDI particles have no note-off to wait for; expire srcAlive after 1s.
     if (p.srcAlive && p.srcType !== "midi" && elapsed > 1000) p.srcAlive = false;
 
-    // Advance through any wall-hit events whose scheduled time has now passed
-    // and refresh the flash timer for each. Multiple hits in one tick just keep
-    // the flash window saturated.
+    // Advance through any wall-hit events whose scheduled time has now passed.
+    // Fire the audio engine + flash at this moment so the voice triggers when
+    // the particle visually reaches the wall, not at emission. The voice's
+    // tapout~ still reads back `delayMs` (the travel time) so it plays the
+    // audio that was current when the particle was born — i.e. the particle
+    // "carries" that audio across the canvas and "drops" it on the wall.
     while (p.nextEventIdx < p.events.length && elapsed >= p.events[p.nextEventIdx].hitTimeMs) {
+      var ev = p.events[p.nextEventIdx];
+      var gainEv = Math.pow(0.85, ev.bounce);
+      var panEv  = Math.max(-1, Math.min(1, (ev.x / Math.max(1, W)) * 2 - 1));
+      outlet(0, "hit", p.id, ev.wallId, Math.round(ev.delayMs),
+             gainEv, panEv,
+             ev.x, ev.y, ev.nx, ev.ny, ev.bounce);
       p.hitFlashUntilMs = now + 150;
       p.nextEventIdx++;
     }
@@ -133,18 +142,9 @@ function emitParticle(now, pitch, velocity, srcType) {
     hitFlashUntilMs: 0
   });
 
-  // Per-hit gain/pan. Gain decays per bounce (a wall hit on the 4th bounce is
-  // ~-4 dB below the first); pan maps the hit's screen x to [-1, 1]. Per-wall
-  // gain/pan overrides arrive in M4 — for now this is the only sound shape.
-  var Wem = box.rect[2] - box.rect[0];
-  for (var i = 0; i < path.events.length; i++) {
-    var e = path.events[i];
-    var gain = Math.pow(0.85, e.bounce);
-    var pan = Math.max(-1, Math.min(1, (e.x / Math.max(1, Wem)) * 2 - 1));
-    outlet(0, "hit", pid, e.wallId, Math.round(e.delayMs),
-           gain, pan,
-           e.x, e.y, e.nx, e.ny, e.bounce);
-  }
+  // Per-hit `hit` messages are dispatched in tick() at the moment each visual
+  // collision is reached — see the event-advance loop. `particle` just reports
+  // how many bounces were predicted for this emission so the patcher can log.
   outlet(0, "particle", pid, path.events.length);
 }
 
