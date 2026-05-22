@@ -65,6 +65,14 @@ Implementation: per-particle `alive: bool` plus `hitFlashUntilMs`. Render path i
 
 **Phase 2 (M7):** per-wall Map Button captures a Live API path to a target parameter; on hit, the wall writes directly to that parameter via `live.object` / `live.remote~`. Removes the 8-dial cap. Not required for v1.
 
+### Hit-event dispatch — low-priority now, high-priority later
+
+`bouncer.js`'s `tick()` (v8ui low-priority thread, ~60 fps) is currently what fires the `hit` outlet at the moment each particle visually reaches a wall. This gives the right musical feel — Speed / wall distance / multi-bounce all map to perceived timing — at the cost of up to one tick (~16 ms) of jitter between visual collision and audio fire.
+
+The original PLAN (step 4) suggested precomputing the bounce itinerary at emission and shipping the future hit events into Max's high-priority scheduler via `pipe` / `delay`, so the audio dispatch wouldn't depend on the JS frame rate at all. That is the **deferred upgrade**: when M3a's per-hit dispatch jitter becomes audible enough to matter (likely once we move to granular per-wall audio in M6, or once dense particle streams start beating against the frame rate), move dispatch out of `tick()` and into `pipe`-scheduled messages sent at emission time. The `events` array on each particle already carries `hitTimeMs` relative to emission — that's exactly the shape `pipe` wants.
+
+Reason to defer: simpler now, no audible problem with the current sources/rates, and the per-event handling in `tick()` also drives the visual flash — splitting visual flash and audio dispatch onto different threads is more code than it's worth until the jitter actually bites.
+
 ---
 
 ## Recommended direction

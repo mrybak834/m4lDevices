@@ -138,6 +138,12 @@ The device is currently silent and modeless. M3 is split into six independently-
 - [ ] On hit, write a value directly to that parameter via `live.object` / `live.remote~`
 - [ ] Removes the "max 8 dials" limitation of M3d
 
+### Milestone 8 — High-priority hit dispatch (deferred upgrade)
+- [ ] At particle emission, ship each future `hit` event into Max's high-priority scheduler via `pipe <hitTimeMs>` (or per-event `delay`) instead of waiting for the v8ui `tick()` to detect the collision
+- [ ] Visual flash stays driven by `tick()`; only the audio outlet moves
+- [ ] Removes the ~16 ms tick-rate jitter on the audio side
+- [ ] Trigger to take this on: dense particle streams or granular per-wall audio (M6) where the jitter starts to matter. See *Hit-event dispatch* in `PLAN.md.txt` for rationale.
+
 ---
 
 ## Architectural decisions
