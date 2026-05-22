@@ -792,6 +792,94 @@
 
 			{
 				"box" : 				{
+					"id" : "obj-busObserver",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 580.0, 400.0, 320.0, 22.0 ],
+					"text" : "live.observer this_device canonical_parent @property id"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-busRouteId",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "int", "" ],
+					"patching_rect" : [ 580.0, 430.0, 70.0, 22.0 ],
+					"text" : "route id"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-busEq",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "int" ],
+					"patching_rect" : [ 580.0, 460.0, 40.0, 22.0 ],
+					"text" : "== 0"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-busReceive",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 700.0, 400.0, 130.0, 22.0 ],
+					"text" : "r bouncer_midi"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-busUnpack",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 3,
+					"outlettype" : [ "int", "int", "int" ],
+					"patching_rect" : [ 700.0, 430.0, 110.0, 22.0 ],
+					"text" : "unpack 0 0 0"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-busPack",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 700.0, 490.0, 90.0, 22.0 ],
+					"text" : "pack 0 0"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-busGate",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 700.0, 525.0, 90.0, 22.0 ],
+					"text" : "gate 1 0"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-cmtbus",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 580.0, 375.0, 380.0, 18.0 ],
+					"text" : "Auto-pair: receive [pitch vel msgTrackId], pass if msgTrackId == myTrackId"
+				}
+			},
+
+			{
+				"box" : 				{
 					"id" : "obj-zlnth",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
@@ -994,6 +1082,18 @@
 			{ "patchline" : { "destination" : [ "obj-notePack", 0 ], "source" : [ "obj-notein", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-notePack", 1 ], "source" : [ "obj-notein", 1 ] } },
 			{ "patchline" : { "destination" : [ "obj-midiPrep", 0 ], "source" : [ "obj-notePack", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-busRouteId", 0 ], "source" : [ "obj-busObserver", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-busEq", 1 ], "source" : [ "obj-busRouteId", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-busUnpack", 0 ], "source" : [ "obj-busReceive", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-busPack", 0 ], "source" : [ "obj-busUnpack", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-busPack", 1 ], "source" : [ "obj-busUnpack", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-busEq", 0 ], "source" : [ "obj-busUnpack", 2 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-busGate", 0 ], "source" : [ "obj-busEq", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-busGate", 1 ], "source" : [ "obj-busPack", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-midiPrep", 0 ], "source" : [ "obj-busGate", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-routev8", 0 ], "source" : [ "obj-v8ui", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-printhit", 0 ], "source" : [ "obj-routev8", 0 ] } },

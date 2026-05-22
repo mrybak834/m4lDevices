@@ -1,6 +1,13 @@
 param(
-    [string]$JsonPath = "_patcher.json",
-    [string]$OutPath  = "bouncer.amxd"
+    [string]$JsonPath   = "_patcher.json",
+    [string]$OutPath    = "bouncer.amxd",
+    # Device-type tag in the .amxd "ampf" chunk. Verified against Live 12's
+    # built-in templates in Resources/Misc/Max Devices/*.amxd:
+    #   "aaaa" → Max Audio Effect (matches JSON amxdtype 1633771873 = 0x61616161)
+    #   "mmmm" → Max MIDI  Effect (matches JSON amxdtype 1835887981 = 0x6D6D6D6D)
+    # Instrument tag not researched yet — add when needed.
+    [ValidateSet("aaaa", "mmmm")]
+    [string]$DeviceTag  = "aaaa"
 )
 
 # Resolve paths relative to the script's own location so the build works
@@ -15,11 +22,13 @@ $json = $json -replace "`r`n", "`n"
 $json = $json -replace "`n", "`r`n"
 $jsonBytes = [System.Text.Encoding]::UTF8.GetBytes($json + " ")
 
+$tagBytes = [System.Text.Encoding]::ASCII.GetBytes($DeviceTag)
+
 $len = $jsonBytes.Length
 $header = [byte[]](
     0x61, 0x6d, 0x70, 0x66,
     0x04, 0x00, 0x00, 0x00,
-    0x61, 0x61, 0x61, 0x61,
+    $tagBytes[0], $tagBytes[1], $tagBytes[2], $tagBytes[3],
     0x6d, 0x65, 0x74, 0x61,
     0x04, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00,

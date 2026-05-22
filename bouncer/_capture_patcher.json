@@ -1,0 +1,192 @@
+{
+	"patcher" : 	{
+		"fileversion" : 1,
+		"appversion" : 		{
+			"major" : 9,
+			"minor" : 1,
+			"revision" : 4,
+			"architecture" : "x64",
+			"modernui" : 1
+		}
+,
+		"classnamespace" : "box",
+		"rect" : [ 80.0, 80.0, 700.0, 460.0 ],
+		"openinpresentation" : 1,
+		"openrect" : [ 0.0, 0.0, 320.0, 80.0 ],
+		"openrectmode" : 0,
+		"bgcolor" : [ 0.035, 0.052, 0.085, 1.0 ],
+		"default_fontsize" : 10.0,
+		"default_fontname" : "Arial Bold",
+		"gridsize" : [ 8.0, 8.0 ],
+		"boxanimatetime" : 500,
+		"title" : "Bouncer MIDI Capture",
+		"boxes" : [
+			{
+				"box" : 				{
+					"id" : "obj-midiin",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "int" ],
+					"patching_rect" : [ 40.0, 40.0, 50.0, 22.0 ],
+					"text" : "midiin"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-midiout",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 40.0, 80.0, 55.0, 22.0 ],
+					"text" : "midiout"
+				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-notein",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 3,
+					"outlettype" : [ "int", "int", "int" ],
+					"patching_rect" : [ 140.0, 40.0, 50.0, 22.0 ],
+					"text" : "notein"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-pack",
+					"maxclass" : "newobj",
+					"numinlets" : 3,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 140.0, 165.0, 120.0, 22.0 ],
+					"text" : "pack 0 0 0"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-send",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 140.0, 240.0, 130.0, 22.0 ],
+					"text" : "s bouncer_midi"
+				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-observer",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 280.0, 40.0, 320.0, 22.0 ],
+					"text" : "live.observer this_device canonical_parent @property id"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-routeid",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "int", "" ],
+					"patching_rect" : [ 280.0, 80.0, 70.0, 22.0 ],
+					"text" : "route id"
+				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-statusBg",
+					"maxclass" : "live.comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 40.0, 320.0, 220.0, 18.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 6.0, 4.0, 308.0, 72.0 ],
+					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
+					"bordercolor" : [ 0.20, 0.30, 0.40, 0.6 ],
+					"textcolor" : [ 0.55, 0.65, 0.75, 0.85 ],
+					"text" : "",
+					"fontsize" : 10.0,
+					"fontname" : "Arial"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-title",
+					"maxclass" : "live.comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 40.0, 350.0, 200.0, 18.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 12.0, 8.0, 200.0, 14.0 ],
+					"text" : "BOUNCER · MIDI CAPTURE",
+					"textcolor" : [ 0.42, 0.85, 1.0, 0.95 ],
+					"fontsize" : 11.0,
+					"fontname" : "Arial Bold"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-help",
+					"maxclass" : "live.comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 40.0, 380.0, 320.0, 32.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 12.0, 26.0, 296.0, 44.0 ],
+					"text" : "Place BEFORE the instrument. MIDI passes through untouched; notes are forwarded to a Bouncer on the same track. No setup needed.",
+					"textcolor" : [ 0.85, 0.92, 0.98, 0.75 ],
+					"fontsize" : 9.0,
+					"fontname" : "Arial"
+				}
+			}
+		],
+		"lines" : [
+			{ "patchline" : { "destination" : [ "obj-midiout", 0 ], "source" : [ "obj-midiin", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-pack", 0 ], "source" : [ "obj-notein", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-pack", 1 ], "source" : [ "obj-notein", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-send", 0 ], "source" : [ "obj-pack", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-routeid", 0 ], "source" : [ "obj-observer", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-pack", 2 ], "source" : [ "obj-routeid", 0 ] } }
+		],
+		"latency" : 0,
+		"is_mpe" : 0,
+		"external_mpe_tuning_enabled" : 0,
+		"minimum_live_version" : "",
+		"minimum_max_version" : "",
+		"platform_compatibility" : 0,
+		"project" : 		{
+			"version" : 1,
+			"creationdate" : 3590052786,
+			"modificationdate" : 3590052786,
+			"viewrect" : [ 0.0, 0.0, 300.0, 500.0 ],
+			"autoorganize" : 1,
+			"hideprojectwindow" : 1,
+			"showdependencies" : 1,
+			"autolocalize" : 0,
+			"contents" : 			{
+				"patchers" : 				{				}
+			},
+			"layout" : 			{			},
+			"searchpath" : 			{			},
+			"detailsvisible" : 0,
+			"amxdtype" : 1835887981,
+			"readonly" : 0,
+			"devpathtype" : 0,
+			"devpath" : ".",
+			"sortmode" : 0,
+			"viewmode" : 0,
+			"includepackages" : 0
+		},
+		"autosave" : 0,
+		"oscreceiveudpport" : 0
+	}
+}
