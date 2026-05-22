@@ -13,7 +13,20 @@ Researched and confirmed: only the Audio Effect device type can simultaneously s
 | MIDI in | ✅ via parallel MIDI track | ✅ (consumes to make sound — "MIDI gets eaten") | ✅ passes through to instrument |
 | MIDI out | ✅ `noteout`/`midiout` routes to a separate MIDI track that selects this device as its input source | ⚠️ same constraint as Audio Effect | ✅ passes downstream within the same track |
 
-Instruments cannot accept audio input, so they're out. MIDI Effects can't produce or receive audio, so they're out. The Audio Effect's "cost" is that both MIDI in and MIDI out require the user to set up one additional Live track each (parallel MIDI track for input; downstream MIDI track with bouncer-as-MIDI-From for output). This is a Live convention, not a Max code change, and is documented in README.
+Instruments cannot accept audio input, so they're out. MIDI Effects can't produce or receive audio, so they're out. The Audio Effect's "cost" used to be that MIDI in required a parallel MIDI track; that has been replaced (as of the companion-device work below) by a small `bouncer-capture.amxd` MIDI Effect that sits before the instrument on the same track and forwards MIDI to bouncer via `send`/`receive` with zero latency on the same track (Cycling '74 guarantee). MIDI out still requires a downstream MIDI track with bouncer-as-MIDI-From; that's a Live convention, not a Max code change. Both are documented in README.
+
+### Same-track MIDI capture (companion device pattern, shipped)
+
+`bouncer-capture.amxd` (M4L MIDI Effect) → user's instrument → `bouncer.amxd` (M4L Audio Effect), all on one track:
+
+- The capture device's `midiin → midiout` passes MIDI through unchanged so the instrument plays normally.
+- Its `notein` + `live.observer this_device canonical_parent @property id` together emit `[pitch velocity myTrackId]` to a fixed-name `s bouncer_midi`.
+- Bouncer's `r bouncer_midi` unpacks, compares `msgTrackId` to its own `live.observer`-resolved track id via `==` + `gate 1 0`, and only forwards matching messages into the existing `prepend midi_note → v8ui` chain.
+- Auto-pair via track id means multiple bouncer+capture pairs across the set don't cross-trigger; no per-instance dial needed.
+
+Why this rather than the obvious `r bouncer_midi_<trackId>`: Max's `receive` has 0 inlets and cannot have its name changed via `set`. The self-filter approach is the only one that works without thispatcher scripting hacks.
+
+Next step (M8c) wraps both devices + an empty instrument slot into a single `Bouncer.adg` Instrument Rack preset so the install becomes one drag from the browser.
 
 ### Per-wall behavior model
 

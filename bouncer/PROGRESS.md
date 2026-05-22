@@ -40,6 +40,8 @@ The patcher is reloaded from disk only when the device is freshly opened. If you
 - **`autowatch = 1` only arms after the script successfully runs once.** If the first load fails, edits to `bouncer.js` are ignored — you must close and reopen the device.
 - **No `with` statement in v8ui scripts.** v8 runs strict-mode-ish; `with` is a parse-time error and kills the whole script (no functions hoisted). Use explicit `mgraphics.foo()` calls.
 - **`tapin~` must live inside the `poly~` voice, not outside.** `tapin~ → tapout~` is linked by a direct signal cord and the buffer reference is stripped when the signal is routed through `poly~`'s signal inlets to a voice's `in~`. Symptom: `poly~` loads with no errors, `hit` messages reach the voice, the voice fires its envelope, but `tapout~` reads silence and the wet path is dead. Burned ~one debugging cycle on this in M3a. Each voice now owns its own `tapin~ 5000` (16 × ~700 KB ≈ 11 MB total — fine).
+- **`tapout~ 0` has ONE inlet, not two.** The delay value goes to the **same** inlet that receives the `tapin~` signal — both a signal cord and message cords coexist on inlet 0. A patchcord targeting inlet 1 is silently deleted (`tapout~: patchcord inlet out of range`) and every voice ends up reading at delay = 0 (live-audio echo, no actual delay tap). Symptom that's easy to miss: Speed and wall-distance changes don't affect perceived tap timing, but the device still "makes sound" so it looks like it works. Fixed in hitvoice.maxpat.
+- **`receive` has 0 inlets in Max — its name can't be changed via `set`.** Tried building auto-pair as dynamic `r bouncer_midi_<trackId>` driven by a `set` message from a `live.observer`; Max rejected the patchcord with `receive: patchcord inlet out of range`. Switched to a self-filtering pattern instead: fixed-name `s/r bouncer_midi`, message payload is `[pitch vel myTrackId]`, the receiver compares msgTrackId against its own `live.observer`-resolved track id via `==` + `gate`. Zero-latency on same track per Cycling '74's official guarantee.
 
 ## Known risks / things to check first
 
@@ -91,7 +93,9 @@ The device is currently silent and modeless. M3 is split into six independently-
 - [x] Random/audio source mode: auto-expire `srcAlive` after 1s
 - [x] **Verified in Live:** particles emit filled, flash on each wall hit, go hollow on note release, refill briefly on subsequent hits
 
-#### M3c — MIDI out
+#### M3c — MIDI in (companion device) + MIDI out
+- [x] Ship a companion `bouncer-capture.amxd` MIDI Effect that goes before the instrument and forwards MIDI to bouncer via Max `send`/`receive` (zero-latency, same track). Auto-pair by Live API track ID + self-filter — no per-instance setup needed.
+- [x] **Verified in Live:** capture before FM Piano, bouncer after, SOURCE = MIDI; particles emit on every note (including arpeggiator output, since capture sits after MIDI Effects) and FM Piano plays normally.
 - [ ] Add `noteout` (and a hidden `midiout` for future CC) to `_patcher.json`
 - [ ] Add `mode: "audio"|"midi"|"mod"` field to wall object (default `"audio"`)
 - [ ] In hit router, walls in MIDI mode emit `noteout` with `snapshot.pitch + wall.noteOffset` and a scheduled note-off
@@ -113,7 +117,7 @@ The device is currently silent and modeless. M3 is split into six independently-
 #### M3f — Cleanup
 - [ ] Remove the noisy `post()` in `bouncer.js`'s `midi_note()`
 - [ ] Strip `print HIT` / `print PARTICLE` debug logging in the patcher
-- [ ] Update README with Live track-setup instructions for MIDI in/out + parameter mapping
+- [x] Update README with Live track-setup instructions for MIDI in (capture + bouncer on one track via auto-pair) — done; MIDI out + parameter mapping recipes added when M3c's noteout work lands and M3d's mod dials are wired.
 
 ### Milestone 4 — Per-wall config UI
 - [ ] Wall selection panel showing the selected wall's mode + mode-specific params
@@ -143,6 +147,12 @@ The device is currently silent and modeless. M3 is split into six independently-
 - [ ] Visual flash stays driven by `tick()`; only the audio outlet moves
 - [ ] Removes the ~16 ms tick-rate jitter on the audio side
 - [ ] Trigger to take this on: dense particle streams or granular per-wall audio (M6) where the jitter starts to matter. See *Hit-event dispatch* in `PLAN.md.txt` for rationale.
+
+### Milestone 8c — Bouncer Rack preset (single-drag install)
+- [ ] Build `Bouncer.adg` in Live: Instrument Rack containing `bouncer-capture` → an empty instrument slot (labelled "Drop your instrument here") → `bouncer`.
+- [ ] Promote the most-tweaked bouncer parameters as Rack macros: Dry/Wet, Particle Rate, Speed, Max Bounces, Direction, Spread, Draw.
+- [ ] Save into `bouncer/` and commit. From the user's perspective the product becomes "drag Bouncer.adg onto a MIDI track, drop your instrument in the slot".
+- [ ] Out of scope until requested: a default placeholder instrument bundled inside the rack (the empty slot keeps the rack small and honest about what it does).
 
 ---
 
