@@ -12,7 +12,7 @@
 		"classnamespace" : "box",
 		"rect" : [ 80.0, 80.0, 1200.0, 780.0 ],
 		"openinpresentation" : 1,
-		"openrect" : [ 0.0, 0.0, 580.0, 156.0 ],
+		"openrect" : [ 0.0, 0.0, 580.0, 168.0 ],
 		"openrectmode" : 0,
 		"bgcolor" : [ 0.035, 0.052, 0.085, 1.0 ],
 		"default_fontsize" : 10.0,
@@ -249,7 +249,7 @@
 							"parameter_longname" : "DryWet",
 							"parameter_mmax" : 100.0,
 							"parameter_mmin" : 0.0,
-							"parameter_shortname" : "Dry/Wet",
+							"parameter_shortname" : "Mix",
 							"parameter_type" : 0,
 							"parameter_unitstyle" : 1
 						}
@@ -272,6 +272,21 @@
 					"textcolor" : [ 0.42, 0.85, 1.0, 0.95 ]
 				}
 			},
+			{
+				"box" : 				{
+					"id" : "obj-cmt-walls",
+					"maxclass" : "comment",
+					"fontname" : "Arial Bold",
+					"fontsize" : 9.0,
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 130.0, 165.0, 60.0, 14.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 6.0, 94.0, 80.0, 10.0 ],
+					"text" : "WALLS",
+					"textcolor" : [ 1.0, 0.65, 0.35, 0.95 ]
+				}
+			},
 
 			{
 				"box" : 				{
@@ -283,7 +298,7 @@
 					"outlettype" : [ "", "", "" ],
 					"patching_rect" : [ 40.0, 185.0, 80.0, 20.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 6.0, 76.0, 70.0, 18.0 ],
+					"presentation_rect" : [ 6.0, 72.0, 166.0, 18.0 ],
 					"parameter_enable" : 1,
 					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
 					"bgoncolor" : [ 0.18, 0.30, 0.45, 1.0 ],
@@ -315,7 +330,7 @@
 					"outlettype" : [ "", "", "" ],
 					"patching_rect" : [ 130.0, 185.0, 80.0, 20.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 80.0, 76.0, 70.0, 18.0 ],
+					"presentation_rect" : [ 6.0, 104.0, 166.0, 18.0 ],
 					"parameter_enable" : 1,
 					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
 					"bgoncolor" : [ 0.30, 0.22, 0.18, 1.0 ],
@@ -326,7 +341,7 @@
 					"textoncolor" : [ 1.0, 0.65, 0.35, 1.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
-							"parameter_enum" : [ "Audio", "MIDI" ],
+							"parameter_enum" : [ "Audio", "MIDI", "Mod" ],
 							"parameter_initial" : [ 0 ],
 							"parameter_initial_enable" : 1,
 							"parameter_longname" : "WallMode",
@@ -371,7 +386,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 40.0, 215.0, 60.0, 22.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 6.0, 100.0, 68.0, 20.0 ],
+					"presentation_rect" : [ 6.0, 126.0, 80.0, 18.0 ],
 					"text" : "Draw",
 					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
 					"bgoncolor" : [ 1.0, 0.65, 0.35, 1.0 ],
@@ -403,7 +418,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 110.0, 215.0, 60.0, 22.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 80.0, 100.0, 68.0, 20.0 ],
+					"presentation_rect" : [ 92.0, 126.0, 80.0, 18.0 ],
 					"text" : "Expand",
 					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
 					"bgoncolor" : [ 0.42, 0.85, 1.0, 1.0 ],
@@ -435,7 +450,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 40.0, 245.0, 60.0, 22.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 6.0, 124.0, 68.0, 20.0 ],
+					"presentation_rect" : [ 6.0, 146.0, 80.0, 18.0 ],
 					"text" : "Clear",
 					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
 					"bgoncolor" : [ 0.18, 0.30, 0.45, 1.0 ],
@@ -456,7 +471,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 110.0, 245.0, 60.0, 22.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 80.0, 124.0, 68.0, 20.0 ],
+					"presentation_rect" : [ 92.0, 146.0, 80.0, 18.0 ],
 					"text" : "Delete",
 					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
 					"bgoncolor" : [ 0.30, 0.18, 0.18, 1.0 ],
@@ -616,10 +631,10 @@
 					"id" : "obj-notePipe",
 					"maxclass" : "newobj",
 					"numinlets" : 4,
-					"numoutlets" : 4,
-					"outlettype" : [ "int", "int", "int", "int" ],
+					"numoutlets" : 3,
+					"outlettype" : [ "int", "int", "int" ],
 					"patching_rect" : [ 1140.0, 550.0, 90.0, 22.0 ],
-					"text" : "pipe 0 0 0"
+					"text" : "pipe 0 0 0 0"
 				}
 			},
 			{
@@ -684,11 +699,11 @@
 					"maxclass" : "v8ui",
 					"filename" : "D:/Ableton/User Library/Presets/Audio Effects/Max Audio Effect/bouncer/bouncer.js",
 					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
 					"patching_rect" : [ 700.0, 40.0, 520.0, 380.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 180.0, 4.0, 396.0, 148.0 ]
+					"presentation_rect" : [ 180.0, 4.0, 396.0, 104.0 ]
 				}
 			},
 			{
@@ -696,30 +711,10 @@
 					"id" : "obj-routev8",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
-					"numoutlets" : 5,
-					"outlettype" : [ "", "", "", "", "" ],
-					"patching_rect" : [ 700.0, 440.0, 230.0, 22.0 ],
-					"text" : "route hit particle note_hit geometry"
-				}
-			},
-			{
-				"box" : 				{
-					"id" : "obj-printhit",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 700.0, 480.0, 70.0, 22.0 ],
-					"text" : "print HIT"
-				}
-			},
-			{
-				"box" : 				{
-					"id" : "obj-printparticle",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 780.0, 480.0, 95.0, 22.0 ],
-					"text" : "print PARTICLE"
+					"numoutlets" : 6,
+					"outlettype" : [ "", "", "", "", "", "" ],
+					"patching_rect" : [ 700.0, 440.0, 260.0, 22.0 ],
+					"text" : "route hit particle note_hit mod geometry"
 				}
 			},
 			{
@@ -875,7 +870,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 250.0, 565.0, 290.0, 22.0 ],
-					"text" : "script sendbox v8ui presentation_rect 180 4 $1 152"
+					"text" : "script sendbox v8ui presentation_rect 180 4 $1 104"
 				}
 			},
 			{
@@ -1153,6 +1148,341 @@
 					"patching_rect" : [ 240.0, 720.0, 40.0, 22.0 ],
 					"text" : "+~"
 				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-cmtmod",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 1000.0, 650.0, 380.0, 18.0 ],
+					"text" : "M3d mod outputs: hit pulses Wall Mod 1-8, decays in bouncer.js"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-modRoute",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 9,
+					"outlettype" : [ "", "", "", "", "", "", "", "", "" ],
+					"patching_rect" : [ 1000.0, 670.0, 170.0, 22.0 ],
+					"text" : "route 0 1 2 3 4 5 6 7"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod1",
+					"varname" : "mod1Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1000.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 180.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 1",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 1",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod2",
+					"varname" : "mod2Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1046.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 224.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 2",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 2",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod3",
+					"varname" : "mod3Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1092.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 268.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 3",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 3",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod4",
+					"varname" : "mod4Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1138.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 312.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 4",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 4",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod5",
+					"varname" : "mod5Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1184.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 356.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 5",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 5",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod6",
+					"varname" : "mod6Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1230.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 400.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 6",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 6",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod7",
+					"varname" : "mod7Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1276.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 444.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 7",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 7",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mod8",
+					"varname" : "mod8Dial",
+					"maxclass" : "live.dial",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "float" ],
+					"patching_rect" : [ 1322.0, 705.0, 38.0, 46.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 488.0, 121.0, 32.0, 44.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_initial" : [ 0.0 ],
+							"parameter_initial_enable" : 1,
+							"parameter_longname" : "Wall Mod 8",
+							"parameter_mmax" : 1.0,
+							"parameter_mmin" : 0.0,
+							"parameter_shortname" : "Mod 8",
+							"parameter_type" : 0
+						}
+					}
+				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-cmtmodpres",
+					"maxclass" : "comment",
+					"fontname" : "Arial Bold",
+					"fontsize" : 9.0,
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 1000.0, 760.0, 200.0, 14.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 180.0, 110.0, 396.0, 10.0 ],
+					"text" : "MOD  —  set Walls = Mod, click Map, then click a target",
+					"textcolor" : [ 1.0, 0.65, 0.35, 0.95 ]
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mapbtn",
+					"varname" : "mapBtn",
+					"maxclass" : "live.text",
+					"mode" : 1,
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 600.0, 690.0, 60.0, 22.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 526.0, 124.0, 48.0, 40.0 ],
+					"text" : "Map",
+					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
+					"bgoncolor" : [ 1.0, 0.65, 0.35, 1.0 ],
+					"bordercolor" : [ 0.20, 0.30, 0.40, 0.6 ],
+					"focusbordercolor" : [ 1.0, 0.65, 0.35, 0.5 ],
+					"textcolor" : [ 0.85, 0.92, 0.98, 0.85 ],
+					"textoncolor" : [ 0.05, 0.07, 0.11, 1.0 ]
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mapArmPrep",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 600.0, 730.0, 110.0, 22.0 ],
+					"text" : "prepend map_arm"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mapOutRoute",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 3,
+					"outlettype" : [ "", "", "" ],
+					"patching_rect" : [ 820.0, 865.0, 180.0, 22.0 ],
+					"text" : "route map_target map_disarm"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mapIdPrep",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 820.0, 900.0, 70.0, 22.0 ],
+					"text" : "prepend id"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mapIdDefer",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 820.0, 930.0, 70.0, 22.0 ],
+					"text" : "deferlow"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-mapOff",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 700.0, 935.0, 40.0, 22.0 ],
+					"text" : "0"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-modSig",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "signal" ],
+					"patching_rect" : [ 820.0, 900.0, 60.0, 22.0 ],
+					"text" : "sig~ 0."
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-remote",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 0,
+					"patching_rect" : [ 820.0, 935.0, 180.0, 22.0 ],
+					"text" : "live.remote~ @normalized 1"
+				}
 			}
 		],
 		"lines" : [
@@ -1227,9 +1557,28 @@
 			{ "patchline" : { "destination" : [ "obj-midiPrep", 0 ], "source" : [ "obj-busGate", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-routev8", 0 ], "source" : [ "obj-v8ui", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-printhit", 0 ], "source" : [ "obj-routev8", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-printparticle", 0 ], "source" : [ "obj-routev8", 1 ] } },
-			{ "patchline" : { "destination" : [ "obj-setprep", 0 ], "source" : [ "obj-routev8", 3 ] } },
+			{ "patchline" : { "destination" : [ "obj-setprep", 0 ], "source" : [ "obj-routev8", 4 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-modRoute", 0 ], "source" : [ "obj-routev8", 3 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod1", 0 ], "source" : [ "obj-modRoute", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod2", 0 ], "source" : [ "obj-modRoute", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod3", 0 ], "source" : [ "obj-modRoute", 2 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod4", 0 ], "source" : [ "obj-modRoute", 3 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod5", 0 ], "source" : [ "obj-modRoute", 4 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod6", 0 ], "source" : [ "obj-modRoute", 5 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod7", 0 ], "source" : [ "obj-modRoute", 6 ] } },
+			{ "patchline" : { "destination" : [ "obj-mod8", 0 ], "source" : [ "obj-modRoute", 7 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-modSig", 0 ], "source" : [ "obj-modRoute", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-remote", 0 ], "source" : [ "obj-modSig", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mapArmPrep", 0 ], "source" : [ "obj-mapbtn", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-mapArmPrep", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mapOutRoute", 0 ], "source" : [ "obj-v8ui", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-mapIdPrep", 0 ], "source" : [ "obj-mapOutRoute", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mapIdDefer", 0 ], "source" : [ "obj-mapIdPrep", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-remote", 1 ], "source" : [ "obj-mapIdDefer", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-mapOff", 0 ], "source" : [ "obj-mapOutRoute", 1 ] } },
+			{ "patchline" : { "destination" : [ "obj-mapbtn", 0 ], "source" : [ "obj-mapOff", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-pattr", 0 ], "source" : [ "obj-setprep", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-restoreprep", 0 ], "source" : [ "obj-pattr", 0 ] } },
@@ -1272,12 +1621,20 @@
 			"obj-rate" : [ "ParticleRate", "Rate", 0 ],
 			"obj-speed" : [ "ProjectionSpeed", "Speed", 0 ],
 			"obj-bounces" : [ "MaxBounces", "Bounces", 0 ],
-			"obj-drywet" : [ "DryWet", "Dry/Wet", 0 ],
+			"obj-drywet" : [ "DryWet", "Mix", 0 ],
 			"obj-drawtoggle" : [ "DrawMode", "Draw", 0 ],
 			"obj-sourceTab" : [ "SourceMode", "Source", 0 ],
 			"obj-wallTab" : [ "WallMode", "Walls", 0 ],
 			"obj-noteDur" : [ "NoteDuration", "NoteDur", 0 ],
 			"obj-expandbtn" : [ "ExpandView", "Expand", 0 ],
+			"obj-mod1" : [ "Wall Mod 1", "Mod 1", 0 ],
+			"obj-mod2" : [ "Wall Mod 2", "Mod 2", 0 ],
+			"obj-mod3" : [ "Wall Mod 3", "Mod 3", 0 ],
+			"obj-mod4" : [ "Wall Mod 4", "Mod 4", 0 ],
+			"obj-mod5" : [ "Wall Mod 5", "Mod 5", 0 ],
+			"obj-mod6" : [ "Wall Mod 6", "Mod 6", 0 ],
+			"obj-mod7" : [ "Wall Mod 7", "Mod 7", 0 ],
+			"obj-mod8" : [ "Wall Mod 8", "Mod 8", 0 ],
 			"parameterbanks" : 			{
 				"0" : 				{
 					"index" : 0,

@@ -3,9 +3,7 @@
 
 autowatch = 1;
 inlets = 1;
-outlets = 1;
-
-post("bouncer.js: starting load\n");
+outlets = 2;   // 0 = events/geometry, 1 = map (target id / disarm)
 
 mgraphics.init();
 mgraphics.relative_coords = 0;
@@ -32,8 +30,19 @@ var sourceMode = 0;       // 0 = random auto-emission, 1 = MIDI-triggered, 2 = a
 // the M3c UI is just a global override that stamps every wall's mode in lockstep.
 // When the M4 per-wall editor lands the global tab becomes "default for new walls"
 // and per-wall mode wins at dispatch time.
-var globalWallMode = 0;   // 0 = audio, 1 = midi (mod = M3d)
+var globalWallMode = 0;   // 0 = audio, 1 = midi, 2 = mod
 var midiDurMs = 200;      // note-off scheduled this many ms after note-on (in patcher's pipe)
+
+// M3d parameter-modulation outputs. Walls in "mod" mode pulse one of 8
+// device-parameter dials (mapped by the user in Live's Map mode). Each dial
+// jumps to peakValue on a hit and decays linearly back to 0 over decayMs.
+// Decay runs in tick() at the ~60 fps frame rate (good enough for Phase 1
+// manual mapping; the steppiness only matters for fast filter sweeps).
+var NUM_MOD_DIALS = 8;
+var modDials = [];        // [{active, startMs, peak, decayMs}]
+for (var _mi = 0; _mi < NUM_MOD_DIALS; _mi++) {
+  modDials.push({ active: false, startMs: 0, peak: 0, decayMs: 300 });
+}
 
 var currentDraw = null;
 var selectedWall = -1;
@@ -89,6 +98,15 @@ function tick() {
         var pitch = (p.snapshot && p.snapshot.pitch >= 0) ? p.snapshot.pitch : 60;
         var vel   = (p.snapshot && p.snapshot.velocity > 0) ? p.snapshot.velocity : 100;
         outlet(0, "note_hit", pitch, vel, 1);
+      } else if (mode === "mod") {
+        var di = wall.dialIndex | 0;
+        if (di < 0) di = 0;
+        if (di >= NUM_MOD_DIALS) di = NUM_MOD_DIALS - 1;
+        var m = modDials[di];
+        m.active = true;
+        m.startMs = now;
+        m.peak = (wall.peakValue !== undefined) ? wall.peakValue : 1.0;
+        m.decayMs = (wall.decayMs !== undefined) ? wall.decayMs : 300;
       } else {
         var gainEv = Math.pow(0.85, ev.bounce);
         var panEv  = Math.max(-1, Math.min(1, (ev.x / Math.max(1, W)) * 2 - 1));
@@ -123,7 +141,25 @@ function tick() {
   for (var i = 0; i < particles.length; i++) if (particles[i].alive) alive.push(particles[i]);
   particles = alive;
 
+  updateModDials(now);
+
   mgraphics.redraw();
+}
+
+// Emit the current value of every decaying mod dial. Outputs once more at 0
+// when a pulse finishes, then goes quiet until the next hit re-arms it.
+function updateModDials(now) {
+  for (var i = 0; i < NUM_MOD_DIALS; i++) {
+    var m = modDials[i];
+    if (!m.active) continue;
+    var frac = (now - m.startMs) / Math.max(1, m.decayMs);
+    if (frac >= 1) {
+      outlet(0, "mod", i, 0.0);
+      m.active = false;
+    } else {
+      outlet(0, "mod", i, m.peak * (1 - frac));
+    }
+  }
 }
 
 function nowMs() {
@@ -429,14 +465,30 @@ function ondrag(x, y, button, mod1, shift, capslock, option, ctrl) {
   }
 }
 
+function modeStrFor(n) {
+  return (n === 2) ? "mod" : (n === 1) ? "midi" : "audio";
+}
+
+// M3d per-wall mod params. The M3c global-stamp model has no per-wall editor
+// yet, so every mod wall defaults to dial 0; M4's wall editor will let the user
+// pick dialIndex/peakValue/decayMs individually. These fields still round-trip
+// through the geometry pattr so M4 inherits them for free.
+function ensureModFields(w) {
+  if (w.dialIndex === undefined) w.dialIndex = 0;
+  if (w.peakValue === undefined) w.peakValue = 1.0;
+  if (w.decayMs === undefined) w.decayMs = 300;
+}
+
 function finishDraw() {
   if (currentDraw && currentDraw.points.length > 1) {
-    walls.push({
+    var w = {
       id: nextWallId++,
       points: simplify(currentDraw.points, 2.0),
       color: [0.55, 0.78, 1, 0.95],
-      mode: (globalWallMode === 1) ? "midi" : "audio"
-    });
+      mode: modeStrFor(globalWallMode)
+    };
+    ensureModFields(w);
+    walls.push(w);
     dumpGeometry();
   }
   currentDraw = null;
@@ -540,13 +592,71 @@ function source_mode(n) {
 // wall drawn afterward. Round-trips through the geometry pattr.
 function wall_mode(n) {
   globalWallMode = (n | 0);
-  var modeStr = (globalWallMode === 1) ? "midi" : "audio";
-  for (var i = 0; i < walls.length; i++) walls[i].mode = modeStr;
+  var modeStr = modeStrFor(globalWallMode);
+  for (var i = 0; i < walls.length; i++) {
+    walls[i].mode = modeStr;
+    ensureModFields(walls[i]);
+  }
   dumpGeometry();
 }
 
 function midi_dur(ms) {
   midiDurMs = Math.max(10, Math.min(5000, ms | 0));
+}
+
+// ---------- M3d Map (Live API capture of the clicked parameter) ----------
+// The Map button sends `map_arm 1` when armed / `map_arm 0` when off. We lazily
+// create a LiveAPI observer on the Song view's selected_parameter — only on the
+// first arm, when the Live API is guaranteed ready (this is why it lives here in
+// JS and not in a patcher chain fired by loadbang: loadbang runs before the Live
+// API exists, so the observer never armed). While armed, the next parameter the
+// user clicks (whose id differs from what was selected at arm time) is captured
+// and sent out outlet 1 as `map_target <id>` (the patcher prepends `id` and
+// feeds live.remote~). `map_disarm` pops the Map button back off.
+var mapArmed = false;
+var selParamObs = null;
+var armBaselineId = 0;
+
+function map_arm(v) {
+  mapArmed = (v != 0);
+  if (!mapArmed) return;
+  armBaselineId = currentSelParamId();
+  if (selParamObs === null) {
+    try {
+      selParamObs = new LiveAPI(onSelParam, "live_set view");
+      selParamObs.property = "selected_parameter";
+    } catch (e) {
+      post("bouncer.js: map observer create failed: " + e + "\n");
+    }
+  }
+}
+
+function currentSelParamId() {
+  try {
+    var view = new LiveAPI("live_set view");
+    var sp = view.get("selected_parameter");
+    if (sp === undefined || sp === null) return 0;
+    return (sp instanceof Array) ? sp[sp.length - 1] : sp;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function onSelParam(args) {
+  if (!mapArmed) return;
+  var id = (args instanceof Array) ? args[args.length - 1] : args;
+  if (typeof id !== "number" || id <= 0) return;
+  if (id == armBaselineId) return;   // selection didn't change yet — keep waiting
+
+  // Only DeviceParameter objects can be driven by live.remote~; a single click
+  // can also fire this with non-parameter objects (e.g. a View), so verify type.
+  var t = "";
+  try { t = new LiveAPI("id " + id).type; } catch (e) { t = ""; }
+  if (t !== "DeviceParameter") return;
+
+  outlet(1, "map_target", id);
+  mapArmed = false;
+  outlet(1, "map_disarm");
 }
 
 // Called from patcher: [notein] → [pack] → prepend midi_note → v8ui inlet.
@@ -555,7 +665,6 @@ function midi_dur(ms) {
 // Overlapping same-pitch note-ons aren't disambiguated — all matching live
 // particles flip together. Good enough for v1.
 function midi_note(pitch, vel) {
-  post("bouncer.js: midi_note pitch=" + pitch + " vel=" + vel + " mode=" + sourceMode + "\n");
   if (vel > 0) {
     if (sourceMode === 1) emitParticle(nowMs(), pitch, vel, "midi");
     return;
@@ -610,6 +719,7 @@ function restore(payload) {
       walls = s.walls;
       for (var i = 0; i < walls.length; i++) {
         if (!walls[i].mode) walls[i].mode = "audio";
+        ensureModFields(walls[i]);
       }
     }
     mgraphics.redraw();
