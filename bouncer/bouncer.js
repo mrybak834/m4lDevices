@@ -57,6 +57,10 @@ function bang() {
 function tick() {
   var now = nowMs();
 
+  // Re-establish a mod mapping restored from the Set (deferred until the Live
+  // API is ready — see applyPendingMap).
+  if (pendingMapApply) applyPendingMap();
+
   // Rescue source if it ended up outside the visible canvas (e.g. older
   // presets stored at y=200 when the canvas was taller). User can drag
   // it from wherever it lands.
@@ -617,6 +621,15 @@ var mapArmed = false;
 var selParamObs = null;
 var armBaselineId = 0;
 
+// The mapped target persists with the Live Set as a PATH, not an id: Live
+// re-assigns object ids every session, so a stored id is meaningless on reload,
+// but the canonical path (e.g. "live_set tracks 0 devices 0 parameters 5") still
+// resolves. mapTargetPath rides in the geomState blob; on load applyPendingMap()
+// re-resolves it to a fresh id and re-points live.remote~. See restore path.
+var mapTargetPath = "";
+var pendingMapApply = false;
+var pendingMapTries = 0;
+
 function map_arm(v) {
   mapArmed = (v != 0);
   if (!mapArmed) return;
@@ -650,13 +663,44 @@ function onSelParam(args) {
 
   // Only DeviceParameter objects can be driven by live.remote~; a single click
   // can also fire this with non-parameter objects (e.g. a View), so verify type.
+  // Capture the canonical PATH too so the mapping survives a save/reload.
   var t = "";
-  try { t = new LiveAPI("id " + id).type; } catch (e) { t = ""; }
+  var path = "";
+  try {
+    var api = new LiveAPI("id " + id);
+    t = api.type;
+    path = api.unquotedpath || api.path || "";
+  } catch (e) { t = ""; }
   if (t !== "DeviceParameter") return;
+
+  mapTargetPath = path;
+  pendingMapApply = false;   // we're applying it live right now
+  dumpGeometry();            // persist the new target with the canvas blob
 
   outlet(1, "map_target", id);
   mapArmed = false;
   outlet(1, "map_disarm");
+}
+
+// On Set load the stored mapTargetPath is re-resolved here, not in restore():
+// restore() runs while the Live API may not be ready yet, so we defer the
+// resolve to tick() (a metro bang, not a notification — safe to set ids) and
+// retry until the path resolves to a live DeviceParameter (or we give up).
+function applyPendingMap() {
+  if (!mapTargetPath) { pendingMapApply = false; return; }
+  pendingMapTries++;
+  try {
+    var api = new LiveAPI(mapTargetPath);
+    if (api && (api.id | 0) !== 0 && api.type === "DeviceParameter") {
+      outlet(1, "map_target", api.id);
+      pendingMapApply = false;
+      return;
+    }
+  } catch (e) {}
+  if (pendingMapTries > 180) {   // ~3 s at 60 fps — path is gone (device removed?)
+    pendingMapApply = false;
+    post("bouncer.js: could not re-resolve mapped target on load: " + mapTargetPath + "\n");
+  }
 }
 
 // Called from patcher: [notein] → [pack] → prepend midi_note → v8ui inlet.
@@ -711,7 +755,8 @@ function safeDecode(s) {
 // value is a list of JSON character-code NUMBERS (blob param; numbers dodge the
 // pattr "bad number" symbol-coercion).
 function stateJSON() {
-  return JSON.stringify({ source: source, nextWallId: nextWallId, walls: walls });
+  return JSON.stringify({ source: source, nextWallId: nextWallId, walls: walls,
+                          mapTargetPath: mapTargetPath });
 }
 
 function getvalueof() {
@@ -746,6 +791,13 @@ function applyGeometry(json) {
         ensureModFields(walls[w]);
       }
       selectedWall = -1;   // any prior selection index is stale after a load
+    }
+    // Re-arm the mod mapping. Empty string = explicitly unmapped; a missing
+    // field (old Sets/presets) leaves the current mapping untouched.
+    if (typeof s.mapTargetPath === "string") {
+      mapTargetPath = s.mapTargetPath;
+      pendingMapTries = 0;
+      pendingMapApply = (mapTargetPath !== "");
     }
     mgraphics.redraw();
   } catch (e) {
