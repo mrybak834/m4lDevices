@@ -703,29 +703,52 @@ function safeDecode(s) {
   });
 }
 
-function dumpGeometry() {
+// Geometry persists with the Live Set through the jsui-state mechanism: a pattr
+// (@parameter_enable + @bindto this v8ui) calls getvalueof() to read our state
+// at save time and setvalueof() to restore it on load. The parameter's identity
+// is this v8ui's stable scripting name, so Live reliably matches it across
+// sessions (unlike an unnamed dict, whose random name Live can't track). The
+// value is a list of JSON character-code NUMBERS (blob param; numbers dodge the
+// pattr "bad number" symbol-coercion).
+function getvalueof() {
   var snapshot = { source: source, nextWallId: nextWallId, walls: walls };
-  outlet(0, "geometry", safeEncode(JSON.stringify(snapshot)));
+  return safeEncode(JSON.stringify(snapshot));   // single alphanumeric symbol
 }
 
-function restore(payload) {
+function setvalueof(s) {
+  if (s === undefined || s === null || s === "" || s === 0) return;
+  applyGeometry(safeDecode(String(s)));
+}
+
+// pattr @bindto restores a bound object's state by sending it a "restore <value>"
+// message, so this is the actual write path on Set load (getvalueof is the read).
+function restore(s) {
+  if (s === undefined || s === null || s === "" || s === 0) return;
+  applyGeometry(safeDecode(String(s)));
+}
+
+function applyGeometry(json) {
   try {
-    if (payload === undefined || payload === null || payload === 0 || payload === "") return;
-    var decoded = safeDecode(String(payload));
-    var s = JSON.parse(decoded);
+    var s = JSON.parse(json);
     if (s.source) source = s.source;
     if (typeof s.nextWallId === "number") nextWallId = s.nextWallId;
     if (s.walls && s.walls.length) {
       walls = s.walls;
-      for (var i = 0; i < walls.length; i++) {
-        if (!walls[i].mode) walls[i].mode = "audio";
-        ensureModFields(walls[i]);
+      for (var w = 0; w < walls.length; w++) {
+        if (!walls[w].mode) walls[w].mode = "audio";
+        ensureModFields(walls[w]);
       }
     }
     mgraphics.redraw();
   } catch (e) {
-    post("bouncer.js: restore failed: " + e.message + "\n");
+    post("bouncer.js: geometry restore failed: " + e.message + "\n");
   }
+}
+
+// Geometry changed — tell the bound pattr so the new state is captured (Live
+// also pulls getvalueof() at Set-save time regardless).
+function dumpGeometry() {
+  try { notifyclients(); } catch (e) {}
 }
 
 post("bouncer.js: loaded ok\n");

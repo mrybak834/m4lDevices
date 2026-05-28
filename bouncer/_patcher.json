@@ -703,7 +703,16 @@
 					"outlettype" : [ "", "" ],
 					"patching_rect" : [ 700.0, 40.0, 520.0, 380.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 180.0, 4.0, 396.0, 104.0 ]
+					"presentation_rect" : [ 180.0, 4.0, 396.0, 104.0 ],
+					"parameter_enable" : 1,
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_longname" : "geomState",
+							"parameter_shortname" : "geomState",
+							"parameter_type" : 3,
+							"parameter_invisible" : 1
+						}
+					}
 				}
 			},
 			{
@@ -715,39 +724,6 @@
 					"outlettype" : [ "", "", "", "", "", "" ],
 					"patching_rect" : [ 700.0, 440.0, 260.0, 22.0 ],
 					"text" : "route hit particle note_hit mod geometry"
-				}
-			},
-			{
-				"box" : 				{
-					"id" : "obj-setprep",
-					"maxclass" : "newobj",
-					"numinlets" : 2,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 890.0, 480.0, 80.0, 22.0 ],
-					"text" : "prepend set"
-				}
-			},
-			{
-				"box" : 				{
-					"id" : "obj-pattr",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
-					"patching_rect" : [ 890.0, 515.0, 220.0, 22.0 ],
-					"text" : "pattr geometry"
-				}
-			},
-			{
-				"box" : 				{
-					"id" : "obj-restoreprep",
-					"maxclass" : "newobj",
-					"numinlets" : 2,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 890.0, 550.0, 110.0, 22.0 ],
-					"text" : "prepend restore"
 				}
 			},
 
@@ -782,17 +758,6 @@
 					"outlettype" : [ "bang" ],
 					"patching_rect" : [ 40.0, 630.0, 60.0, 22.0 ],
 					"text" : "metro 16"
-				}
-			},
-			{
-				"box" : 				{
-					"id" : "obj-delay",
-					"maxclass" : "newobj",
-					"numinlets" : 2,
-					"numoutlets" : 1,
-					"outlettype" : [ "bang" ],
-					"patching_rect" : [ 130.0, 630.0, 60.0, 22.0 ],
-					"text" : "delay 300"
 				}
 			},
 
@@ -1537,7 +1502,6 @@
 			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-clearmsg", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-deletemsg", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-metro", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-restoreprep", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-midiPrep", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-notePack", 0 ], "source" : [ "obj-notein", 0 ] } },
@@ -1557,7 +1521,6 @@
 			{ "patchline" : { "destination" : [ "obj-midiPrep", 0 ], "source" : [ "obj-busGate", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-routev8", 0 ], "source" : [ "obj-v8ui", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-setprep", 0 ], "source" : [ "obj-routev8", 4 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-modRoute", 0 ], "source" : [ "obj-routev8", 3 ] } },
 			{ "patchline" : { "destination" : [ "obj-mod1", 0 ], "source" : [ "obj-modRoute", 0 ] } },
@@ -1580,13 +1543,9 @@
 			{ "patchline" : { "destination" : [ "obj-mapOff", 0 ], "source" : [ "obj-mapOutRoute", 1 ] } },
 			{ "patchline" : { "destination" : [ "obj-mapbtn", 0 ], "source" : [ "obj-mapOff", 0 ] } },
 
-			{ "patchline" : { "destination" : [ "obj-pattr", 0 ], "source" : [ "obj-setprep", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-restoreprep", 0 ], "source" : [ "obj-pattr", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-trig", 0 ], "source" : [ "obj-loadbang", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-metro", 0 ], "source" : [ "obj-trig", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-delay", 0 ], "source" : [ "obj-trig", 1 ] } },
-			{ "patchline" : { "destination" : [ "obj-pattr", 0 ], "source" : [ "obj-delay", 0 ] } },
 
 			{ "patchline" : { "destination" : [ "obj-wallPrep", 0 ], "source" : [ "obj-wallTab", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-wallPrep", 0 ] } },
@@ -1635,6 +1594,7 @@
 			"obj-mod6" : [ "Wall Mod 6", "Mod 6", 0 ],
 			"obj-mod7" : [ "Wall Mod 7", "Mod 7", 0 ],
 			"obj-mod8" : [ "Wall Mod 8", "Mod 8", 0 ],
+			"obj-v8ui" : [ "geomState", "geomState", 0 ],
 			"parameterbanks" : 			{
 				"0" : 				{
 					"index" : 0,
