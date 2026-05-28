@@ -22,6 +22,7 @@ The patcher is reloaded from disk only when the device is freshly opened. If you
 6. **Milestone 2 check:** in the Max console, watch for `HIT: <pid> <wallId> <delayMs> <x> <y> <nx> <ny> <bounce>` lines on every wall hit. Lower the `Speed` dial → delay numbers grow. `PARTICLE: <pid> <hitCount>` prints once per particle emission.
 7. **Geometry persistence:** draw a wall, then close + reopen the device. The wall should come back. (If it doesn't, see *Known risks* below.)
 8. **M3a audio check:** on the audio track that hosts bouncer, play any sound (a loop, a synth feeding it, anything). Open the device, find the **Dry/Wet** parameter in the device's parameter dropdown (it isn't in presentation yet) and bring it up to ~50%. Draw a wall. Every particle/wall hit should produce a delayed tap of whatever was playing `delay_ms` ago, panned by the hit's x position, slightly dimmer on each successive bounce. The Max console should show no "no function" or "poly~: can't open" errors. If you see `poly~: can't open hitvoice.maxpat`, the absolute path in `_patcher.json` doesn't exist on your machine — edit the `poly~` text in the patcher.
+9. **M3c MIDI-out check:** create a second MIDI track in Live; set its `MIDI From` to the track that hosts bouncer and pick `Bouncer` as the source; drop a synth on it; arm/monitor. In bouncer, set the `Walls` tab to `MIDI`. Hit play and draw a wall. The downstream synth should fire a note on every wall hit. With `SOURCE = MIDI` the pitch follows the upstream note; with `SOURCE = Random` it sticks at pitch 60. Adjust `NoteDuration` (in the parameter dropdown) to change how long each note sustains. The Max console should be quiet.
 
 ## Known issues (deferred — not blocking next milestone)
 
@@ -42,6 +43,8 @@ The patcher is reloaded from disk only when the device is freshly opened. If you
 - **`tapin~` must live inside the `poly~` voice, not outside.** `tapin~ → tapout~` is linked by a direct signal cord and the buffer reference is stripped when the signal is routed through `poly~`'s signal inlets to a voice's `in~`. Symptom: `poly~` loads with no errors, `hit` messages reach the voice, the voice fires its envelope, but `tapout~` reads silence and the wet path is dead. Burned ~one debugging cycle on this in M3a. Each voice now owns its own `tapin~ 5000` (16 × ~700 KB ≈ 11 MB total — fine).
 - **`tapout~ 0` has ONE inlet, not two.** The delay value goes to the **same** inlet that receives the `tapin~` signal — both a signal cord and message cords coexist on inlet 0. A patchcord targeting inlet 1 is silently deleted (`tapout~: patchcord inlet out of range`) and every voice ends up reading at delay = 0 (live-audio echo, no actual delay tap). Symptom that's easy to miss: Speed and wall-distance changes don't affect perceived tap timing, but the device still "makes sound" so it looks like it works. Fixed in hitvoice.maxpat.
 - **`receive` has 0 inlets in Max — its name can't be changed via `set`.** Tried building auto-pair as dynamic `r bouncer_midi_<trackId>` driven by a `set` message from a `live.observer`; Max rejected the patchcord with `receive: patchcord inlet out of range`. Switched to a self-filtering pattern instead: fixed-name `s/r bouncer_midi`, message payload is `[pitch vel myTrackId]`, the receiver compares msgTrackId against its own `live.observer`-resolved track id via `==` + `gate`. Zero-latency on same track per Cycling '74's official guarantee.
+- **A `@parameter_enable 1` `pattr` is a *numeric* Live parameter — it cannot hold a symbol/blob.** The geometry pattr was `pattr geometry @parameter_enable 1`; every `dumpGeometry()` (wall draw, Clear, Delete, Walls Audio/MIDI tab) ships `set <encoded-json-symbol>` into it, and the parameter layer tries to coerce the symbol to a number → `set: bad number` spam in the Max console (the store also silently fails). Changing Source didn't trigger it because `source_mode` doesn't dump geometry. Fixed by demoting it to a plain `pattr geometry` (blob store) and removing it from the `parameters` manifest — matches the design intent (geometry is preset-recall blob data, *not* a Live-automatable parameter). Caveat: a plain pattr persists via the patcher's saved value (one shared default across instances + requires a Max save), **not** per-instance with the Live set. True per-instance blob persistence (pattrstorage or a blob-typed param) is still open — fold into M4.
+- **`pipe`'s left inlet distributes a list across all inlets, including the rightmost delay.** This lets the M3c note-off chain collapse to: `pack pitch 0 ch durMs → pipe 0 0 0`, where the 4-element list distributes 3 values + delay. Pipe's outlets fire right-to-left at the scheduled time, so connect them to noteout's 3 inlets directly (no re-pack needed). The trick is that `unpack 0 0 0`'s outlets also fire right-to-left, which means by the time `pitch` (outlet 0, hot) lands on both `noteout` inlet 0 (fires note-on) and `pack4` inlet 0 (fires the scheduled-off list), `vel` and `ch` are already in place on both downstream boxes. No `trigger` needed; the ordering falls out naturally.
 
 ## Known risks / things to check first
 
@@ -96,11 +99,11 @@ The device is currently silent and modeless. M3 is split into six independently-
 #### M3c — MIDI in (companion device) + MIDI out
 - [x] Ship a companion `bouncer-capture.amxd` MIDI Effect that goes before the instrument and forwards MIDI to bouncer via Max `send`/`receive` (zero-latency, same track). Auto-pair by Live API track ID + self-filter — no per-instance setup needed.
 - [x] **Verified in Live:** capture before FM Piano, bouncer after, SOURCE = MIDI; particles emit on every note (including arpeggiator output, since capture sits after MIDI Effects) and FM Piano plays normally.
-- [ ] Add `noteout` (and a hidden `midiout` for future CC) to `_patcher.json`
-- [ ] Add `mode: "audio"|"midi"|"mod"` field to wall object (default `"audio"`)
-- [ ] In hit router, walls in MIDI mode emit `noteout` with `snapshot.pitch + wall.noteOffset` and a scheduled note-off
-- [ ] Minimal UI: global "all walls mode" switch as placeholder until M4 brings the per-wall editor
-- [ ] **Verify:** set up second MIDI track receiving from bouncer, drop a synth on it, set walls to MIDI mode, see notes fire on each hit
+- [x] Add `noteout` to `_patcher.json` (hidden `midiout` for future CC is deferred to M3d/M4)
+- [x] Add `mode: "audio"|"midi"|"mod"` field to wall object (default `"audio"`; backfilled on restore for old presets)
+- [x] In hit router, walls in MIDI mode emit a `note_hit pitch vel ch` message that's split in the patcher into an immediate note-on + a `pipe`-scheduled note-off. `wall.noteOffset` is M4 — for M3c the pitch is `snapshot.pitch` (or 60 when source is non-MIDI).
+- [x] Minimal UI: global `WallMode` `live.tab` (Audio / MIDI) placeholder until M4 brings the per-wall editor. Stamps every wall's `mode` in lockstep on change. Companion `NoteDuration` `live.dial` (10–2000 ms, default 200) controls the note-off delay; lives in the parameter dropdown, not in presentation yet (M3e polish).
+- [ ] **Verify:** set up a second MIDI track in Live with `MIDI From = <bouncer track> | Bouncer`, drop a synth, arm/monitor; flip the `WallMode` tab to `MIDI`, hit play, draw a wall; the downstream synth should fire a note on every wall hit with snapshot pitch (or 60 when SOURCE is Random) and the note-off arrives `NoteDuration` ms later.
 
 #### M3d — Parameter modulation outputs (Phase 1 — manual map)
 - [ ] Add 8 `live.dial` parameters (`Wall Mod 1` … `Wall Mod 8`) exposed in device parameter list
@@ -171,12 +174,17 @@ The device is currently silent and modeless. M3 is split into six independently-
 | Control          | Object         | Range / values            | Routes to                          |
 |------------------|----------------|---------------------------|------------------------------------|
 | Dry/Wet          | `live.dial`    | 0–100 %                   | output crossfade                   |
+| Emit Direction   | `live.dial`    | 0–360 °                   | v8ui `emit_dir`                    |
+| Emit Spread      | `live.dial`    | 0–360 °                   | v8ui `emit_spread`                 |
 | Particle Rate    | `live.dial`    | 10–1000 ms                | v8ui `rate_ms`                     |
-| Projection Speed | `live.dial`    | 50–1000 px/s              | v8ui `speed_px_s`                  |
-| Max Bounces      | `live.dial`    | 1–32                      | v8ui `max_bounces`                 |
-| Hit Gain         | `live.dial`    | -60 to +6 dB              | hit voice gain                     |
-| Draw Mode        | `live.toggle`  | 0 / 1                     | v8ui `drawmode`                    |
+| Projection Speed | `live.dial`    | 50–1500 px/s              | v8ui `speed_px_s`                  |
+| Max Bounces      | `live.dial`    | 1–32                      | v8ui `max_bounces` *(param-only)*  |
+| Note Duration    | `live.dial`    | 10–2000 ms                | v8ui `midi_dur` + pipe delay inlet *(param-only)* |
+| Draw Mode        | `live.text`    | toggle                    | v8ui `drawmode`                    |
+| Source Mode      | `live.tab`     | Random / MIDI             | v8ui `source_mode`                 |
+| Wall Mode        | `live.tab`     | Audio / MIDI              | v8ui `wall_mode` (global override) |
+| Expand View      | `live.text`    | compact / expanded        | thispatcher resize                 |
 | Clear Walls      | `live.text`    | button                    | v8ui `clear_walls`                 |
 | Delete Selected  | `live.text`    | button                    | v8ui `delete_selected`             |
 
-(Hit Gain wired in M3. Dry/Wet currently controls bypass crossfade only — gets wet path in M3.)
+Hit Gain dial is no longer wired separately — per-bounce gain (`0.85^bounce`) and hit pan (x → [-1, 1]) are computed in `bouncer.js`'s dispatch loop and shipped per-hit in the `hit` message. Per-wall gain/pan overrides land in M4.

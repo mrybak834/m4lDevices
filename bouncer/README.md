@@ -20,6 +20,24 @@ MIDI clip → (any MIDI effects e.g. Arpeggiator) → bouncer-capture → your i
 
 A `Bouncer.adg` Instrument Rack preset bundling both devices + an empty instrument slot is planned (see `PROGRESS.md` Milestone 8c) so the entire setup becomes one drag from the browser.
 
+### Sending MIDI out from walls (M3c)
+
+Bouncer's `Walls` tab (parameter `WallMode`) selects what every wall does on hit:
+
+- `Audio` — wall hits feed the internal delay tap engine (default).
+- `MIDI` — wall hits emit `noteout` with the particle's snapshot pitch, the snapshot velocity, and channel 1. The note-off is scheduled `NoteDuration` ms (default 200) after the note-on.
+
+To use MIDI-mode walls, set up a downstream MIDI track:
+
+1. Create a new MIDI track.
+2. Set its **MIDI From** chooser to the track that hosts bouncer, then pick `Bouncer` in the second chooser (Live exposes bouncer as a MIDI source because of its `noteout` object).
+3. Set **Monitor** to `In` (so the track passes MIDI without recording-arm).
+4. Drop any synth on this MIDI track.
+
+Flip bouncer's `Walls` tab to `MIDI`. Every wall hit will now drive a note on the downstream synth. With `SOURCE = MIDI`, pitch follows the upstream-played note; with `SOURCE = Random`, pitch is currently fixed at 60 (middle C). Per-wall note offsets / channels land in M4.
+
+Per-wall mode (mixing audio + MIDI walls in the same device) lands with the per-wall editor in M4; the M3c placeholder stamps every wall to the same mode in lockstep.
+
 ### Standalone / advanced setups
 
 - **bouncer alone on an audio track**: tap-effect any audio source. No MIDI source mode unless you route MIDI into the track via `MIDI From` (Live 11+) or a parallel MIDI track whose `MIDI To` targets the bouncer device. Particle emission stays in `Random` mode.

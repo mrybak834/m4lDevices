@@ -28,6 +28,13 @@ var emitAngleDeg = 0;     // direction the emitter is pointing (0 = right, 90 = 
 var sweepDeg = 360;       // emission cone width; 360 = omnidirectional
 var sourceMode = 0;       // 0 = random auto-emission, 1 = MIDI-triggered, 2 = audio (future)
 
+// Per-wall mode lives on each wall (wall.mode = "audio" | "midi" | "mod"), but
+// the M3c UI is just a global override that stamps every wall's mode in lockstep.
+// When the M4 per-wall editor lands the global tab becomes "default for new walls"
+// and per-wall mode wins at dispatch time.
+var globalWallMode = 0;   // 0 = audio, 1 = midi (mod = M3d)
+var midiDurMs = 200;      // note-off scheduled this many ms after note-on (in patcher's pipe)
+
 var currentDraw = null;
 var selectedWall = -1;
 var draggingSource = false;
@@ -74,11 +81,21 @@ function tick() {
     // "carries" that audio across the canvas and "drops" it on the wall.
     while (p.nextEventIdx < p.events.length && elapsed >= p.events[p.nextEventIdx].hitTimeMs) {
       var ev = p.events[p.nextEventIdx];
-      var gainEv = Math.pow(0.85, ev.bounce);
-      var panEv  = Math.max(-1, Math.min(1, (ev.x / Math.max(1, W)) * 2 - 1));
-      outlet(0, "hit", p.id, ev.wallId, Math.round(ev.delayMs),
-             gainEv, panEv,
-             ev.x, ev.y, ev.nx, ev.ny, ev.bounce);
+      var wall = findWallById(ev.wallId);
+      var mode = (wall && wall.mode) || "audio";
+      if (mode === "midi") {
+        // snapshot.pitch is -1 when source isn't MIDI; fall back to a fixed pitch
+        // so random/audio sources still produce an audible MIDI placeholder.
+        var pitch = (p.snapshot && p.snapshot.pitch >= 0) ? p.snapshot.pitch : 60;
+        var vel   = (p.snapshot && p.snapshot.velocity > 0) ? p.snapshot.velocity : 100;
+        outlet(0, "note_hit", pitch, vel, 1);
+      } else {
+        var gainEv = Math.pow(0.85, ev.bounce);
+        var panEv  = Math.max(-1, Math.min(1, (ev.x / Math.max(1, W)) * 2 - 1));
+        outlet(0, "hit", p.id, ev.wallId, Math.round(ev.delayMs),
+               gainEv, panEv,
+               ev.x, ev.y, ev.nx, ev.ny, ev.bounce);
+      }
       p.hitFlashUntilMs = now + 150;
       p.nextEventIdx++;
     }
@@ -417,7 +434,8 @@ function finishDraw() {
     walls.push({
       id: nextWallId++,
       points: simplify(currentDraw.points, 2.0),
-      color: [0.55, 0.78, 1, 0.95]
+      color: [0.55, 0.78, 1, 0.95],
+      mode: (globalWallMode === 1) ? "midi" : "audio"
     });
     dumpGeometry();
   }
@@ -455,6 +473,11 @@ function simplify(pts, eps) {
     return Math.sqrt(ddx * ddx + ddy * ddy);
   }
   return rdp(0, pts.length - 1);
+}
+
+function findWallById(id) {
+  for (var i = 0; i < walls.length; i++) if (walls[i].id === id) return walls[i];
+  return null;
 }
 
 function findNearestWallIndex(x, y, threshold) {
@@ -510,6 +533,20 @@ function emit_spread(deg) {
 function source_mode(n) {
   sourceMode = (n | 0);
   mgraphics.redraw();
+}
+
+// Global wall-mode placeholder until M4 brings a per-wall editor. Stamps the
+// mode onto every existing wall and uses the new value as the default for any
+// wall drawn afterward. Round-trips through the geometry pattr.
+function wall_mode(n) {
+  globalWallMode = (n | 0);
+  var modeStr = (globalWallMode === 1) ? "midi" : "audio";
+  for (var i = 0; i < walls.length; i++) walls[i].mode = modeStr;
+  dumpGeometry();
+}
+
+function midi_dur(ms) {
+  midiDurMs = Math.max(10, Math.min(5000, ms | 0));
 }
 
 // Called from patcher: [notein] → [pack] → prepend midi_note → v8ui inlet.
@@ -569,7 +606,12 @@ function restore(payload) {
     var s = JSON.parse(decoded);
     if (s.source) source = s.source;
     if (typeof s.nextWallId === "number") nextWallId = s.nextWallId;
-    if (s.walls && s.walls.length) walls = s.walls;
+    if (s.walls && s.walls.length) {
+      walls = s.walls;
+      for (var i = 0; i < walls.length; i++) {
+        if (!walls[i].mode) walls[i].mode = "audio";
+      }
+    }
     mgraphics.redraw();
   } catch (e) {
     post("bouncer.js: restore failed: " + e.message + "\n");
