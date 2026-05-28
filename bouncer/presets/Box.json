@@ -1,0 +1,6 @@
+{"source":{"x":198,"y":53},"nextWallId":5,"walls":[
+{"id":1,"points":[{"x":24,"y":14},{"x":372,"y":14}],"color":[0.55,0.78,1,0.95],"mode":"audio","dialIndex":0,"peakValue":1.0,"decayMs":300},
+{"id":2,"points":[{"x":372,"y":14},{"x":372,"y":92}],"color":[0.55,0.78,1,0.95],"mode":"audio","dialIndex":0,"peakValue":1.0,"decayMs":300},
+{"id":3,"points":[{"x":372,"y":92},{"x":24,"y":92}],"color":[0.55,0.78,1,0.95],"mode":"audio","dialIndex":0,"peakValue":1.0,"decayMs":300},
+{"id":4,"points":[{"x":24,"y":92},{"x":24,"y":14}],"color":[0.55,0.78,1,0.95],"mode":"audio","dialIndex":0,"peakValue":1.0,"decayMs":300}
+]}

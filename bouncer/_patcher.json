@@ -12,7 +12,7 @@
 		"classnamespace" : "box",
 		"rect" : [ 80.0, 80.0, 1200.0, 780.0 ],
 		"openinpresentation" : 1,
-		"openrect" : [ 0.0, 0.0, 580.0, 168.0 ],
+		"openrect" : [ 0.0, 0.0, 700.0, 168.0 ],
 		"openrectmode" : 0,
 		"bgcolor" : [ 0.035, 0.052, 0.085, 1.0 ],
 		"default_fontsize" : 10.0,
@@ -720,10 +720,10 @@
 					"id" : "obj-routev8",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
-					"numoutlets" : 6,
-					"outlettype" : [ "", "", "", "", "", "" ],
-					"patching_rect" : [ 700.0, 440.0, 260.0, 22.0 ],
-					"text" : "route hit particle note_hit mod geometry"
+					"numoutlets" : 7,
+					"outlettype" : [ "", "", "", "", "", "", "" ],
+					"patching_rect" : [ 700.0, 440.0, 300.0, 22.0 ],
+					"text" : "route hit particle note_hit mod geometry menu"
 				}
 			},
 
@@ -791,7 +791,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 460.0, 530.0, 195.0, 22.0 ],
-					"text" : "if $i1 > 0 then 1200 else 580"
+					"text" : "if $i1 > 0 then 1200 else 700"
 				}
 			},
 			{
@@ -1448,6 +1448,146 @@
 					"patching_rect" : [ 820.0, 935.0, 180.0, 22.0 ],
 					"text" : "live.remote~ @normalized 1"
 				}
+			},
+
+			{
+				"box" : 				{
+					"id" : "obj-presetLabel",
+					"maxclass" : "comment",
+					"fontname" : "Arial Bold",
+					"fontsize" : 9.0,
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 1240.0, 20.0, 100.0, 14.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 582.0, 2.0, 100.0, 10.0 ],
+					"text" : "PRESETS",
+					"textcolor" : [ 0.55, 0.95, 0.85, 0.95 ]
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-presetMenu",
+					"varname" : "presetMenu",
+					"maxclass" : "umenu",
+					"numinlets" : 1,
+					"numoutlets" : 3,
+					"outlettype" : [ "int", "", "menu" ],
+					"fontname" : "Arial",
+					"fontsize" : 9.0,
+					"patching_rect" : [ 1240.0, 44.0, 120.0, 22.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 582.0, 16.0, 110.0, 18.0 ],
+					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
+					"textcolor" : [ 0.85, 0.92, 0.98, 0.95 ],
+					"bordercolor" : [ 0.20, 0.30, 0.40, 0.6 ],
+					"arrow" : 1
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-presetName",
+					"varname" : "presetName",
+					"maxclass" : "textedit",
+					"numinlets" : 1,
+					"numoutlets" : 4,
+					"outlettype" : [ "", "int", "", "" ],
+					"fontname" : "Arial",
+					"fontsize" : 9.0,
+					"patching_rect" : [ 1240.0, 80.0, 120.0, 22.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 582.0, 40.0, 110.0, 18.0 ],
+					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
+					"textcolor" : [ 0.85, 0.92, 0.98, 0.95 ],
+					"text" : ""
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-saveBtn",
+					"varname" : "saveBtn",
+					"maxclass" : "live.text",
+					"mode" : 0,
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 1240.0, 116.0, 60.0, 22.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 582.0, 62.0, 110.0, 18.0 ],
+					"text" : "Save",
+					"bgcolor" : [ 0.07, 0.10, 0.16, 1.0 ],
+					"bgoncolor" : [ 0.18, 0.45, 0.38, 1.0 ],
+					"bordercolor" : [ 0.20, 0.30, 0.40, 0.6 ],
+					"focusbordercolor" : [ 0.55, 0.95, 0.85, 0.5 ],
+					"textcolor" : [ 0.85, 0.92, 0.98, 0.85 ],
+					"textoncolor" : [ 1.0, 1.0, 1.0, 1.0 ]
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-presetLoadPrep",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 1380.0, 44.0, 180.0, 22.0 ],
+					"text" : "prepend preset_load_index"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-saveBang",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "bang" ],
+					"patching_rect" : [ 1320.0, 116.0, 30.0, 22.0 ],
+					"text" : "t b"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-nameRoute",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 1240.0, 150.0, 90.0, 22.0 ],
+					"text" : "route text"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-savePrep",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 1240.0, 184.0, 160.0, 22.0 ],
+					"text" : "prepend preset_save"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-refreshDelay",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "bang" ],
+					"patching_rect" : [ 1380.0, 90.0, 80.0, 22.0 ],
+					"text" : "delay 800"
+				}
+			},
+			{
+				"box" : 				{
+					"id" : "obj-refreshMsg",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 1380.0, 120.0, 130.0, 22.0 ],
+					"text" : "refresh_presets"
+				}
 			}
 		],
 		"lines" : [
@@ -1572,7 +1712,21 @@
 			{ "patchline" : { "destination" : [ "obj-thisdevice", 0 ], "source" : [ "obj-setwidth-defer", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-canvas-msg", 0 ], "source" : [ "obj-canvas-if", 0 ] } },
 			{ "patchline" : { "destination" : [ "obj-canvas-defer", 0 ], "source" : [ "obj-canvas-msg", 0 ] } },
-			{ "patchline" : { "destination" : [ "obj-thispatch", 0 ], "source" : [ "obj-canvas-defer", 0 ] } }
+			{ "patchline" : { "destination" : [ "obj-thispatch", 0 ], "source" : [ "obj-canvas-defer", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-presetMenu", 0 ], "source" : [ "obj-routev8", 5 ] } },
+			{ "patchline" : { "destination" : [ "obj-presetLoadPrep", 0 ], "source" : [ "obj-presetMenu", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-presetLoadPrep", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-saveBang", 0 ], "source" : [ "obj-saveBtn", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-presetName", 0 ], "source" : [ "obj-saveBang", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-nameRoute", 0 ], "source" : [ "obj-presetName", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-savePrep", 0 ], "source" : [ "obj-nameRoute", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-savePrep", 0 ] } },
+
+			{ "patchline" : { "destination" : [ "obj-refreshDelay", 0 ], "source" : [ "obj-loadbang", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-refreshMsg", 0 ], "source" : [ "obj-refreshDelay", 0 ] } },
+			{ "patchline" : { "destination" : [ "obj-v8ui", 0 ], "source" : [ "obj-refreshMsg", 0 ] } }
 		],
 		"parameters" : 		{
 			"obj-emitDir" : [ "EmitDirection", "Dir", 0 ],

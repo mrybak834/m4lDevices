@@ -710,9 +710,12 @@ function safeDecode(s) {
 // sessions (unlike an unnamed dict, whose random name Live can't track). The
 // value is a list of JSON character-code NUMBERS (blob param; numbers dodge the
 // pattr "bad number" symbol-coercion).
+function stateJSON() {
+  return JSON.stringify({ source: source, nextWallId: nextWallId, walls: walls });
+}
+
 function getvalueof() {
-  var snapshot = { source: source, nextWallId: nextWallId, walls: walls };
-  return safeEncode(JSON.stringify(snapshot));   // single alphanumeric symbol
+  return safeEncode(stateJSON());   // single alphanumeric symbol
 }
 
 function setvalueof(s) {
@@ -732,12 +735,17 @@ function applyGeometry(json) {
     var s = JSON.parse(json);
     if (s.source) source = s.source;
     if (typeof s.nextWallId === "number") nextWallId = s.nextWallId;
-    if (s.walls && s.walls.length) {
+    // Apply walls whenever the field is a present array — including an empty
+    // one, so loading a wall-less preset (e.g. "Init") actually clears the
+    // canvas. (Guard only against a missing/garbled field, which keeps current
+    // walls rather than wiping them.)
+    if (s.walls && s.walls.length !== undefined) {
       walls = s.walls;
       for (var w = 0; w < walls.length; w++) {
         if (!walls[w].mode) walls[w].mode = "audio";
         ensureModFields(walls[w]);
       }
+      selectedWall = -1;   // any prior selection index is stale after a load
     }
     mgraphics.redraw();
   } catch (e) {
@@ -749,6 +757,92 @@ function applyGeometry(json) {
 // also pulls getvalueof() at Set-save time regardless).
 function dumpGeometry() {
   try { notifyclients(); } catch (e) {}
+}
+
+// ---------- presets (M3.5 — in-device menu + JSON files) ----------
+// Factory + user presets live as plain JSON files in bouncer/presets/. The
+// canvas already serializes to JSON (stateJSON), so a preset is just that JSON
+// written to / read from disk. Same per-machine absolute-path caveat as the
+// v8ui filename / poly~ path (Freeze or search-path fix lands with those).
+// The patcher's umenu is populated index-for-index from presetNames, so the
+// menu's selection index maps straight back to a filename via preset_load_index.
+var PRESET_DIR = "D:/Ableton/User Library/Presets/Audio Effects/Max Audio Effect/bouncer/presets";
+var presetNames = [];   // filename stems, in umenu order (set by refreshPresets)
+
+// Keep typed names to a safe filename stem (letters/digits/space/-/_). Spaces
+// stay so "My Patch" reads naturally; the umenu and File handle them fine.
+function sanitizeName(name) {
+  return String(name).replace(/[^0-9A-Za-z _-]/g, "").replace(/^ +| +$/g, "");
+}
+
+// Called as `preset_save <name>`. A name with spaces arrives as several atoms
+// (Max splits on whitespace), so rejoin all args before sanitizing.
+function preset_save() {
+  var raw = "";
+  for (var i = 0; i < arguments.length; i++) raw += (i ? " " : "") + arguments[i];
+  var stem = sanitizeName(raw);
+  if (stem === "") { post("bouncer.js: preset name empty — not saved\n"); return; }
+  try {
+    var f = new File(PRESET_DIR + "/" + stem + ".json", "write");
+    if (!f.isopen) { post("bouncer.js: could not open preset for write: " + stem + "\n"); return; }
+    f.writestring(stateJSON());
+    f.close();
+  } catch (e) {
+    post("bouncer.js: preset save failed: " + e + "\n");
+    return;
+  }
+  refreshPresets();
+}
+
+function preset_load() {
+  var raw = "";
+  for (var i = 0; i < arguments.length; i++) raw += (i ? " " : "") + arguments[i];
+  loadPresetByStem(sanitizeName(raw));
+}
+
+// umenu emits the selected item's index; map it back through our list.
+function preset_load_index(i) {
+  i = i | 0;
+  if (i < 0 || i >= presetNames.length) return;
+  loadPresetByStem(presetNames[i]);
+}
+
+function loadPresetByStem(stem) {
+  if (!stem) return;
+  try {
+    var f = new File(PRESET_DIR + "/" + stem + ".json", "read");
+    if (!f.isopen) { post("bouncer.js: preset not found: " + stem + "\n"); return; }
+    var json = f.readstring(f.eof);
+    f.close();
+    applyGeometry(json);
+    dumpGeometry();   // make the loaded canvas the saved Set state too
+  } catch (e) {
+    post("bouncer.js: preset load failed: " + e + "\n");
+  }
+}
+
+// Enumerate presets/*.json → repopulate presetNames[] and the patcher umenu
+// (out outlet 0 as `menu clear` / `menu append <name>`; the patcher routes
+// `menu` straight into the umenu inlet).
+function refresh_presets() { refreshPresets(); }
+
+function refreshPresets() {
+  presetNames = [];
+  try {
+    var folder = new Folder(PRESET_DIR);
+    folder.typelist = [];   // list every file; filter by extension ourselves
+    while (!folder.end) {
+      var fn = folder.filename;
+      if (/\.json$/i.test(fn)) presetNames.push(fn.replace(/\.json$/i, ""));
+      folder.next();
+    }
+    folder.close();
+  } catch (e) {
+    post("bouncer.js: preset list failed: " + e + "\n");
+  }
+  presetNames.sort();
+  outlet(0, "menu", "clear");
+  for (var i = 0; i < presetNames.length; i++) outlet(0, "menu", "append", presetNames[i]);
 }
 
 post("bouncer.js: loaded ok\n");
